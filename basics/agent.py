@@ -18,7 +18,6 @@ from google.adk.models import BaseLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.models.lite_llm import LiteLlm
-from litellm import acompletion
 import re
 
 load_dotenv()
@@ -235,7 +234,7 @@ Supported Models:
     tools = None
     if args.with_tools:
         try:
-            from tools import AVAILABLE_TOOLS
+            from tools.gadk.tools import AVAILABLE_TOOLS
             tools = AVAILABLE_TOOLS
             print(f"🔧 Enabled {len(tools)} tools: Taipei time, weather lookup")
         except ImportError as e:
