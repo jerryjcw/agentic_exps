@@ -5,6 +5,7 @@ Google ADK Compatible Tools
 This module provides tools that can be used with Google ADK agents:
 1. get_taipei_time - Gets current time in Taipei, Taiwan
 2. get_temperature - Gets current temperature for a given location
+3. google_search - Performs Google search queries
 """
 
 import datetime
@@ -148,23 +149,131 @@ def get_temperature(location: str) -> Dict[str, str]:
         }
 
 
+def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
+    """
+    Performs a Google search and returns the top results.
+    
+    This tool uses Google Custom Search JSON API to perform searches.
+    It returns the top search results with titles, links, and snippets.
+    
+    Note: This function uses a free Google Custom Search service that may have
+    rate limits. For production use, you may need to set up your own API key.
+    
+    Args:
+        query (str): The search query to execute
+        num_results (int): Number of results to return (default: 5, max: 10)
+        
+    Returns:
+        dict: A dictionary containing:
+            - status: "success" or "error"
+            - report: Search results if successful
+            - error_message: Error description if status is "error"
+    """
+    print(f"🔍 Performing Google search for: {query}")
+    try:
+        # Limit num_results to reasonable bounds
+        num_results = max(1, min(10, num_results))
+        
+        # Use the duckduckgo-search library for reliable search results
+        try:
+            from duckduckgo_search import DDGS
+            
+            # Perform web search using the proper DuckDuckGo search library
+            with DDGS() as ddgs:
+                # Get search results
+                search_results = list(ddgs.text(
+                    keywords=query,
+                    region="wt-wt",
+                    safesearch="moderate", 
+                    max_results=num_results
+                ))
+                
+                if search_results:
+                    # Format the results nicely
+                    formatted_results = [f"Search Results for '{query}':\n"]
+                    
+                    for i, result in enumerate(search_results, 1):
+                        title = result.get('title', 'No title')
+                        href = result.get('href', '')
+                        body = result.get('body', 'No description available')
+                        
+                        # Truncate body if too long
+                        if len(body) > 1024:
+                            body = body[:1024] + "..."
+                        
+                        formatted_results.append(f"{i}. **{title}**")
+                        formatted_results.append(f"   {href}")
+                        formatted_results.append(f"   {body}")
+                        formatted_results.append("")  # Empty line between results
+                    
+                    report = "\n".join(formatted_results)
+                    print(f"🔍 Found {len(search_results)} search results")
+                    return {
+                        "status": "success",
+                        "report": report
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "error_message": f"No search results found for '{query}'. Try using different or more general search terms."
+                    }
+                    
+        except ImportError:
+            return {
+                "status": "error", 
+                "error_message": "DuckDuckGo search library is not installed. Please install it with: pip install duckduckgo-search"
+            }
+        except Exception as search_error:
+            print(f"⚠️ DuckDuckGo search failed: {search_error}")
+            return {
+                "status": "error",
+                "error_message": (
+                    f"Search failed for '{query}'. This could be due to:\n"
+                    "• Network connectivity issues\n"
+                    "• Rate limiting from search service\n"
+                    "• Invalid search terms\n"
+                    f"Error details: {str(search_error)}"
+                )
+            }
+        
+        
+    except requests.exceptions.Timeout:
+        return {
+            "status": "error",
+            "error_message": "Search request timed out. Please check your internet connection and try again."
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "status": "error",
+            "error_message": f"Network error during search: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Unexpected error during search: {str(e)}"
+        }
+
+
 # Import FunctionTool for Google ADK compatibility
 from google.adk.tools import FunctionTool
 
 # Wrap functions with FunctionTool for Google ADK agent usage
 taipei_time_tool = FunctionTool(get_taipei_time)
 temperature_tool = FunctionTool(get_temperature)
+google_search_tool = FunctionTool(google_search)
 
 # Tool registry for easy import
 AVAILABLE_TOOLS = [
     taipei_time_tool,
-    temperature_tool
+    temperature_tool,
+    google_search_tool
 ]
 
 # Also provide the raw functions for direct testing
 RAW_FUNCTIONS = [
     get_taipei_time,
-    get_temperature
+    get_temperature,
+    google_search
 ]
 
 
@@ -192,8 +301,19 @@ if __name__ == "__main__":
     else:
         print(f"Error: {result['error_message']}")
     
+    # Test Google Search tool (raw function)
+    print("\n3. Testing google_search (raw function):")
+    test_query = "current USA president"
+    result = google_search(test_query, num_results=3)
+    print(f"Status: {result['status']}")
+    if result['status'] == 'success':
+        print(f"Report: {result['report'][:1024]}...")  # Show first 200 chars
+    else:
+        print(f"Error: {result['error_message']}")
+    
     # Test FunctionTool wrappers
-    print("\n3. Testing FunctionTool wrappers:")
+    print("\n4. Testing FunctionTool wrappers:")
     print(f"✅ taipei_time_tool: {type(taipei_time_tool)}")
     print(f"✅ temperature_tool: {type(temperature_tool)}")
+    print(f"✅ google_search_tool: {type(google_search_tool)}")
     print(f"✅ AVAILABLE_TOOLS has {len(AVAILABLE_TOOLS)} tools ready for Google ADK agent")

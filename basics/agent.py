@@ -46,7 +46,13 @@ You have access to the following tools to provide accurate, real-time informatio
    - Call this for questions like "What's the weather in [city]?", "Temperature in [location]", "How's the weather in [place]?", etc.
    - This tool requires a location parameter (city name).
 
-IMPORTANT: When a user asks a question that matches these tool capabilities, you MUST call the appropriate tool to get real-time data instead of giving generic responses. Only use tools when the user's question directly relates to time in Taipei or weather/temperature information."""
+3. google_search: Use this tool when users ask for current information, recent news, definitions, or specific topics that require web search.
+   - Call this for questions like "What's the latest news about [topic]?", "Search for [query]", "Find information about [subject]", "What is [term]?", "Tell me about [concept]", etc.
+   - This tool requires a query parameter (search terms) and optionally num_results (default: 5, max: 10).
+   - Use this when users need factual information, definitions, explanations of concepts, current events, or any topic that would benefit from search results.
+   - The tool returns summaries, instant answers, related information, and source links.
+
+IMPORTANT: When a user asks a question that matches these tool capabilities, you MUST call the appropriate tool to get real-time data instead of giving generic responses. Use tools when the user's question relates to time in Taipei, weather/temperature information, or when they need current/search information."""
     
     agent = Agent(
         name=name,
@@ -236,7 +242,7 @@ Supported Models:
         try:
             from tools.gadk.tools import AVAILABLE_TOOLS
             tools = AVAILABLE_TOOLS
-            print(f"🔧 Enabled {len(tools)} tools: Taipei time, weather lookup")
+            print(f"🔧 Enabled {len(tools)} tools: Taipei time, weather lookup, Google search")
         except ImportError as e:
             print(f"⚠️  Could not import tools: {e}")
             print("Make sure tools.py is available and dependencies are installed.")
