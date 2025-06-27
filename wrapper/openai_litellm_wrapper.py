@@ -262,6 +262,9 @@ class OpenAILiteLLMWrapper(BaseLlm):
         Yields:
             LlmResponse objects with the generated content
         """
+        # Ensure proper user content is appended (following BaseLlm pattern)
+        self._maybe_append_user_content(llm_request)
+
         # Convert LlmRequest to OpenAI messages format
         messages = []
         

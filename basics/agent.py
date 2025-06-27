@@ -7,6 +7,7 @@ with LiteLLM as the model provider to access OpenAI's GPT-4o.
 """
 
 import os
+import sys
 import asyncio
 from dotenv import load_dotenv
 from google.adk.agents import Agent
@@ -20,17 +21,31 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.models.lite_llm import LiteLlm
 import re
 
+# Import LangChain wrapper
+current_dir = os.path.dirname(__file__)
+wrapper_dir = os.path.join(os.path.dirname(current_dir), 'wrapper')
+sys.path.append(wrapper_dir)
+
+try:
+    from langchain_litellm_wrapper import create_langchain_litellm_wrapper
+    from langchain.chat_models import init_chat_model
+    LANGCHAIN_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  LangChain wrapper not available: {e}")
+    LANGCHAIN_AVAILABLE = False
+
 load_dotenv()
 
 
-def create_agent(model="openai:gpt-4o", name="LiteLLMAssistant", instruction=None, tools=None):
-    """Create and configure a Google ADK agent with configurable LiteLLM model.
+def create_agent(model="openai:gpt-4o", name="LiteLLMAssistant", instruction=None, tools=None, use_langchain=False):
+    """Create and configure a Google ADK agent with configurable model backend.
     
     Args:
-        model: LiteLLM model string (e.g., "openai:gpt-4o", "anthropic:claude-3-sonnet", "gpt-3.5-turbo")
+        model: Model string (e.g., "openai:gpt-4o", "anthropic:claude-3-sonnet", "gpt-3.5-turbo")
         name: Agent name
         instruction: System instruction for the agent
         tools: List of tool functions to make available to the agent
+        use_langchain: If True, use LangChain wrapper instead of LiteLlm directly
     """
     if instruction is None:
         instruction = f"You are a helpful assistant powered by {model} via LiteLLM. Answer questions clearly and concisely."
@@ -54,9 +69,31 @@ You have access to the following tools to provide accurate, real-time informatio
 
 IMPORTANT: When a user asks a question that matches these tool capabilities, you MUST call the appropriate tool to get real-time data instead of giving generic responses. Use tools when the user's question relates to time in Taipei, weather/temperature information, or when they need current/search information."""
     
+    # Create the model based on the chosen backend
+    if use_langchain and LANGCHAIN_AVAILABLE:
+        # Use LangChain wrapper
+        try:
+            langchain_model = init_chat_model(model)
+            llm_model = create_langchain_litellm_wrapper(
+                langchain_model=langchain_model,
+                model=model.replace(":", "/"),  # Convert to LiteLLM format
+                temperature=0.7,
+                max_tokens=1000
+            )
+            print(f"✓ Created agent with LangChain wrapper for model: {model}")
+        except Exception as e:
+            print(f"❌ Failed to create LangChain wrapper: {e}")
+            print("Falling back to LiteLlm")
+            llm_model = LiteLlm(model='openai/gpt-4o')
+    else:
+        # Use standard LiteLlm
+        llm_model = LiteLlm(model='openai/gpt-4o')
+        if use_langchain and not LANGCHAIN_AVAILABLE:
+            print("⚠️  LangChain wrapper requested but not available, using LiteLlm")
+    
     agent = Agent(
         name=name,
-        model=LiteLlm(model='openai/gpt-4o'),
+        model=llm_model,
         instruction=instruction,
         tools=tools or []
     )
@@ -209,11 +246,13 @@ if __name__ == "__main__":
         description="Google ADK Agent with LiteLLM - A configurable AI agent using Google ADK framework with LiteLLM for multi-provider LLM support",
         epilog="""
 Examples:
-  python agent.py                                    # Use default GPT-4o
+  python agent.py                                    # Use default GPT-4o with LiteLlm
+  python agent.py --use-langchain                    # Use LangChain wrapper instead
   python agent.py --model gpt-3.5-turbo             # Use GPT-3.5-turbo
   python agent.py --interactive                      # Interactive mode
   python agent.py --with-tools                       # Enable time and weather tools
   python agent.py --interactive --with-tools         # Interactive mode with tools
+  python agent.py --use-langchain --with-tools       # LangChain wrapper with tools
   python agent.py --model gpt-4 --name MyAgent      # Custom model and name
   LITELLM_MODEL=gpt-4-turbo python agent.py         # Environment variable
 
@@ -231,6 +270,8 @@ Supported Models:
                        help="Agent name for identification")
     parser.add_argument("--with-tools", action="store_true",
                        help="Enable built-in tools (time and weather)")
+    parser.add_argument("--use-langchain", action="store_true",
+                       help="Use LangChain wrapper instead of LiteLlm directly")
     
     args = parser.parse_args()
     
@@ -249,7 +290,8 @@ Supported Models:
     
     # Create agent with specified model and optional tools
     print(f"Tools available: {tools is not None}, they are: {tools if tools else 'None'}")
-    agent = create_agent(model=args.model, name=args.name, tools=tools)
+    print(f"Using LangChain wrapper: {args.use_langchain}")
+    agent = create_agent(model=args.model, name=args.name, tools=tools, use_langchain=args.use_langchain)
     
     # Check if we should run in interactive mode
     if args.interactive:
