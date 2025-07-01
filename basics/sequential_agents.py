@@ -5,7 +5,7 @@ Sequential Agents for Weather Information Pipeline
 This module demonstrates a sequential agent workflow using Google ADK that:
 1. Uses a web search agent to find the capital city nearest to a requested location
 2. Uses a weather agent to get weather information for that capital city
-3. Includes the current time in Taipei at the end
+3. Includes the current time for that capity city at the end
 
 Based on Google ADK Sequential Agents documentation:
 https://google.github.io/adk-docs/agents/workflow-agents/sequential-agents/
@@ -20,7 +20,7 @@ from google.adk.runners import types
 from google.adk.models.lite_llm import LiteLlm
 
 # Import our tools
-from tools.gadk.tools import google_search_tool, temperature_tool, taipei_time_tool
+from tools.gadk.tools import google_search_tool, temperature_tool, current_time_tool
 
 load_dotenv()
 
@@ -82,16 +82,16 @@ Store your findings using the key "weather_info" in your response.
 
 
 def create_time_agent():
-    """Create an agent specialized in adding Taipei time information"""
-    instruction = """You are a Time Information Specialist. Your task is to get the current time in Taipei and compile a final weather report.
+    """Create an agent specialized in adding time information for any city"""
+    instruction = """You are a Time Information Specialist. Your task is to get the current time for any city and compile a final weather report.
 
-You will receive weather information from the previous agent. Use the get_taipei_time tool to:
-1. Get the current time in Taipei, Taiwan
+You will receive weather information from the previous agent. Use the get_current_time tool to:
+1. Get the current time for the requested city
 2. Combine all the information into a comprehensive final report
 3. Present everything in a well-organized, user-friendly format
 
 Important guidelines:
-- Always include the Taipei time at the end of your response
+- Always include the current time at the end of your response
 - Organize the information logically: location → weather → time
 - Make the final response comprehensive and easy to read
 - Use clear formatting and structure
@@ -103,7 +103,7 @@ Store your final report using the key "final_report" in your response.
         name="TimeInformationAgent",
         model=LiteLlm(model='openai/gpt-4o'), 
         instruction=instruction,
-        tools=[taipei_time_tool],
+        tools=[current_time_tool],
         output_key="final_report"
     )
 
@@ -120,7 +120,7 @@ def create_weather_pipeline():
     pipeline = SequentialAgent(
         sub_agents=[search_agent, weather_agent, time_agent],
         name="WeatherInformationPipeline",
-        description="A sequential workflow that finds the nearest capital city, gets its weather, and includes Taipei time"
+        description="A sequential workflow that finds the nearest capital city, gets its weather, and includes current time"
     )
     
     return pipeline
@@ -134,7 +134,7 @@ async def run_weather_pipeline(location: str):
         location (str): The location to get weather information for
         
     Returns:
-        str: The final weather report including Taipei time
+        str: The final weather report including current time
     """
     # Create the pipeline
     pipeline = create_weather_pipeline()
@@ -192,7 +192,7 @@ async def main():
     print("This pipeline will:")
     print("1. 🔍 Find the nearest capital city to your location")
     print("2. 🌤️  Get weather information for that capital city") 
-    print("3. 🕐 Include the current time in Taipei")
+    print("3. 🕐 Include the current time for that capital city")
     print()
     
     # Example locations to test

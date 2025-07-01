@@ -23,7 +23,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 load_dotenv()
 
-from tools.gadk.tools import google_search_tool, temperature_tool, taipei_time_tool
+from tools.gadk.tools import google_search_tool, temperature_tool, current_time_tool
 
 def create_openai_wrapper_model(api_key_file: str = None, model: str = "gpt-4o"):
     """
@@ -124,8 +124,8 @@ def create_sequential_agents_with_wrapper():
     time_agent = Agent(
         name="TimeAgent",
         model=time_model,
-        instruction="Add current Taipei time to the weather report.",
-        tools=[taipei_time_tool],
+        instruction="Add current time for any city to the weather report.",
+        tools=[current_time_tool],
         output_key="final_report"
     )
     

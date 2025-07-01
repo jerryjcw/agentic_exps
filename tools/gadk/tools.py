@@ -3,7 +3,7 @@
 Google ADK Compatible Tools
 
 This module provides tools that can be used with Google ADK agents:
-1. get_taipei_time - Gets current time in Taipei, Taiwan
+1. get_current_time - Gets current time for any city worldwide
 2. get_temperature - Gets current temperature for a given location
 3. google_search - Performs Google search queries
 """
@@ -15,35 +15,135 @@ import os
 from typing import Dict
 
 
-def get_taipei_time() -> Dict[str, str]:
+def get_current_time(city: str) -> Dict[str, str]:
     """
-    Gets the current time in Taipei, Taiwan.
+    Gets the current time for any city worldwide.
     
-    This tool retrieves the current date and time in Taipei timezone
-    and returns it in a human-readable format.
+    This tool retrieves the current date and time in the specified city's timezone
+    and returns it in a human-readable format by using a timezone lookup service.
+    
+    Args:
+        city (str): The name of the city to get the current time for
     
     Returns:
         dict: A dictionary containing:
             - status: "success" or "error"
-            - report: Current time in Taipei formatted as string
+            - report: Current time in the specified city formatted as string
             - error_message: Error description if status is "error"
     """
     try:
-        # Get current time in Taipei timezone
-        taipei_tz = pytz.timezone('Asia/Taipei')
-        current_time = datetime.datetime.now(taipei_tz)
-        
-        # Format the time nicely
-        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
-        
-        return {
-            "status": "success",
-            "report": f"Current time in Taipei, Taiwan: {formatted_time}"
+        # Use TimeZoneDB API to get timezone for the city
+        # This is a free service that doesn't require API key for basic usage
+        base_url = "http://api.timezonedb.com/v2.1/get-time-zone"
+        params = {
+            'key': 'demo',  # Free demo key with limited requests
+            'format': 'json',
+            'by': 'city',
+            'city': city
         }
+        
+        headers = {
+            'User-Agent': 'TimeZone-Tool/1.0'
+        }
+        
+        response = requests.get(base_url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('status') == 'OK':
+                # Extract timezone information
+                zone_name = data.get('zoneName')
+                formatted_time = data.get('formatted')
+                
+                if zone_name and formatted_time:
+                    # Parse and reformat the time
+                    try:
+                        # Parse the returned time and format it nicely
+                        dt = datetime.datetime.strptime(formatted_time, "%Y-%m-%d %H:%M:%S")
+                        display_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        return {
+                            "status": "success",
+                            "report": f"Current time in {city}: {display_time} ({zone_name})"
+                        }
+                    except ValueError:
+                        # If parsing fails, use the original formatted time
+                        return {
+                            "status": "success",
+                            "report": f"Current time in {city}: {formatted_time} ({zone_name})"
+                        }
+                else:
+                    return {
+                        "status": "error",
+                        "error_message": f"Incomplete timezone data received for city '{city}'"
+                    }
+            else:
+                # API returned an error
+                error_msg = data.get('message', 'Unknown error from timezone service')
+                return {
+                    "status": "error",
+                    "error_message": f"Timezone lookup failed for '{city}': {error_msg}"
+                }
+        else:
+            # Fallback: try to use pytz with common timezone patterns
+            return _get_time_with_fallback(city)
+            
+    except requests.exceptions.RequestException:
+        # Network error - use fallback
+        return _get_time_with_fallback(city)
     except Exception as e:
         return {
             "status": "error",
-            "error_message": f"Failed to get Taipei time: {str(e)}"
+            "error_message": f"Failed to get time for {city}: {str(e)}"
+        }
+
+
+def _get_time_with_fallback(city: str) -> Dict[str, str]:
+    """Fallback method using pytz for common cities when API fails."""
+    try:
+        # Common timezone patterns for major cities
+        common_timezones = {
+            'taipei': 'Asia/Taipei',
+            'tokyo': 'Asia/Tokyo',
+            'beijing': 'Asia/Shanghai',
+            'shanghai': 'Asia/Shanghai',
+            'london': 'Europe/London',
+            'paris': 'Europe/Paris',
+            'new york': 'America/New_York',
+            'los angeles': 'America/Los_Angeles',
+            'sydney': 'Australia/Sydney'
+        }
+        
+        city_lower = city.lower().strip()
+        
+        timezone_str = common_timezones.get(city_lower)
+        if not timezone_str:
+            # Try partial matches
+            for key, tz in common_timezones.items():
+                if city_lower in key or key in city_lower:
+                    timezone_str = tz
+                    break
+        
+        if timezone_str:
+            target_tz = pytz.timezone(timezone_str)
+            current_time = datetime.datetime.now(target_tz)
+            formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+            
+            return {
+                "status": "success",
+                "report": f"Current time in {city}: {formatted_time}"
+            }
+        else:
+            return {
+                "status": "error",
+                "error_message": f"Timezone not found for city '{city}'. Please try a major city like Tokyo, London, New York, etc."
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Failed to get time for {city}: {str(e)}"
         }
 
 
@@ -258,20 +358,20 @@ def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
 from google.adk.tools import FunctionTool
 
 # Wrap functions with FunctionTool for Google ADK agent usage
-taipei_time_tool = FunctionTool(get_taipei_time)
+current_time_tool = FunctionTool(get_current_time)
 temperature_tool = FunctionTool(get_temperature)
 google_search_tool = FunctionTool(google_search)
 
 # Tool registry for easy import
 AVAILABLE_TOOLS = [
-    taipei_time_tool,
+    current_time_tool,
     temperature_tool,
     google_search_tool
 ]
 
 # Also provide the raw functions for direct testing
 RAW_FUNCTIONS = [
-    get_taipei_time,
+    get_current_time,
     get_temperature,
     google_search
 ]
@@ -282,9 +382,9 @@ if __name__ == "__main__":
     print("Testing Google ADK Tools")
     print("=" * 40)
     
-    # Test Taipei time tool (raw function)
-    print("\n1. Testing get_taipei_time (raw function):")
-    result = get_taipei_time()
+    # Test current time tool (raw function)
+    print("\n1. Testing get_current_time (raw function):")
+    result = get_current_time("Tokyo")
     print(f"Status: {result['status']}")
     if result['status'] == 'success':
         print(f"Report: {result['report']}")
@@ -313,7 +413,7 @@ if __name__ == "__main__":
     
     # Test FunctionTool wrappers
     print("\n4. Testing FunctionTool wrappers:")
-    print(f"✅ taipei_time_tool: {type(taipei_time_tool)}")
+    print(f"✅ current_time_tool: {type(current_time_tool)}")
     print(f"✅ temperature_tool: {type(temperature_tool)}")
     print(f"✅ google_search_tool: {type(google_search_tool)}")
     print(f"✅ AVAILABLE_TOOLS has {len(AVAILABLE_TOOLS)} tools ready for Google ADK agent")
