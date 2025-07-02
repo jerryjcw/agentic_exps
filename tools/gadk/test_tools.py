@@ -9,7 +9,7 @@ from agent import create_agent, run_agent_example
 from tools import AVAILABLE_TOOLS
 from google.adk.runners import types
 
-load_dotenv()
+
 
 
 async def test_agent_with_tools():

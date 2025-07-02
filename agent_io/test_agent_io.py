@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent, BaseAgent
-from tools.gadk.tools import get_taipei_time, get_temperature
+from tools.gadk.tools import get_current_time, get_temperature
 from google.adk.tools import FunctionTool
 
 from agent_io.agent_io import save_agent_to_config, create_agent_from_config
@@ -42,7 +42,7 @@ class TestAgentIO(unittest.TestCase):
             name="TestAgent",
             model="test_model",
             instruction="This is a test agent.",
-            tools=[FunctionTool(get_taipei_time)]
+            tools=[FunctionTool(get_current_time)]
         )
         save_agent_to_config(original_agent, self.config_path)
         loaded_agent = create_agent_from_config(self.config_path)
@@ -298,9 +298,9 @@ class TestAgentIO(unittest.TestCase):
 
     def test_save_and_load_agent_with_various_tools(self):
         """Test saving and loading an agent with multiple FunctionTools."""
-        from tools.gadk.tools import get_taipei_time, get_temperature
+        from tools.gadk.tools import get_current_time, get_temperature
 
-        tool1 = FunctionTool(get_taipei_time)
+        tool1 = FunctionTool(get_current_time)
         tool2 = FunctionTool(get_temperature)
 
         original_agent = Agent(
@@ -316,7 +316,7 @@ class TestAgentIO(unittest.TestCase):
         self.assertIsInstance(loaded_agent, Agent)
         self.assertEqual(len(loaded_agent.tools), 2)
         self.assertIsInstance(loaded_agent.tools[0], FunctionTool)
-        self.assertEqual(loaded_agent.tools[0].func.__name__, "get_taipei_time")
+        self.assertEqual(loaded_agent.tools[0].func.__name__, "get_current_time")
         self.assertIsInstance(loaded_agent.tools[1], FunctionTool)
         self.assertEqual(loaded_agent.tools[1].func.__name__, "get_temperature")
 
@@ -324,9 +324,9 @@ class TestAgentIO(unittest.TestCase):
         """Test saving and loading an agent with a mix of tool types."""
         from google.adk.tools import FunctionTool, LongRunningFunctionTool
         from google.adk.tools.agent_tool import AgentTool
-        from tools.gadk.tools import get_taipei_time, get_temperature
+        from tools.gadk.tools import get_current_time, get_temperature
 
-        tool1 = FunctionTool(get_taipei_time)
+        tool1 = FunctionTool(get_current_time)
         tool2 = LongRunningFunctionTool(get_temperature)
         tool3 = AgentTool(Agent(name="SubAgentTool", model="sub-agent-model", instruction="This agent is a tool."))
 
@@ -343,7 +343,7 @@ class TestAgentIO(unittest.TestCase):
         self.assertIsInstance(loaded_agent, Agent)
         self.assertEqual(len(loaded_agent.tools), 3)
         self.assertIsInstance(loaded_agent.tools[0], FunctionTool)
-        self.assertEqual(loaded_agent.tools[0].func.__name__, "get_taipei_time")
+        self.assertEqual(loaded_agent.tools[0].func.__name__, "get_current_time")
         self.assertIsInstance(loaded_agent.tools[1], LongRunningFunctionTool)
         self.assertEqual(loaded_agent.tools[1].func.__name__, "get_temperature")
         self.assertIsInstance(loaded_agent.tools[2], AgentTool)

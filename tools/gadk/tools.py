@@ -6,12 +6,15 @@ This module provides tools that can be used with Google ADK agents:
 1. get_current_time - Gets current time for any city worldwide
 2. get_temperature - Gets current temperature for a given location
 3. google_search - Performs Google search queries
+4. get_earnings_report - Gets earnings data for companies in US, UK, Germany, France markets
+5. get_company_news - Gets recent news articles for companies by name or stock symbol
 """
 
 import datetime
 import pytz
 import requests
 import os
+import time
 from typing import Dict
 
 
@@ -251,13 +254,10 @@ def get_temperature(location: str) -> Dict[str, str]:
 
 def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
     """
-    Performs a Google search and returns the top results.
+    Performs a Google search and returns the top results with retry mechanism.
     
-    This tool uses Google Custom Search JSON API to perform searches.
-    It returns the top search results with titles, links, and snippets.
-    
-    Note: This function uses a free Google Custom Search service that may have
-    rate limits. For production use, you may need to set up your own API key.
+    This tool uses DuckDuckGo search with retry and exponential backoff to handle
+    rate limits and temporary failures gracefully.
     
     Args:
         query (str): The search query to execute
@@ -270,13 +270,24 @@ def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
             - error_message: Error description if status is "error"
     """
     print(f"🔍 Performing Google search for: {query}")
-    try:
-        # Limit num_results to reasonable bounds
-        num_results = max(1, min(10, num_results))
-        
-        # Use the duckduckgo-search library for reliable search results
+    
+    # Limit num_results to reasonable bounds
+    num_results = max(1, min(10, num_results))
+    
+    # Retry configuration
+    max_retries = 3
+    base_delay = 2  # seconds
+    
+    for attempt in range(max_retries + 1):
         try:
-            from duckduckgo_search import DDGS
+            # Import check
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                return {
+                    "status": "error", 
+                    "error_message": "DuckDuckGo search library is not installed. Please install it with: pip install duckduckgo-search"
+                }
             
             # Perform web search using the proper DuckDuckGo search library
             with DDGS() as ddgs:
@@ -318,44 +329,62 @@ def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
                         "error_message": f"No search results found for '{query}'. Try using different or more general search terms."
                     }
                     
-        except ImportError:
-            return {
-                "status": "error", 
-                "error_message": "DuckDuckGo search library is not installed. Please install it with: pip install duckduckgo-search"
-            }
         except Exception as search_error:
-            print(f"⚠️ DuckDuckGo search failed: {search_error}")
-            return {
-                "status": "error",
-                "error_message": (
-                    f"Search failed for '{query}'. This could be due to:\n"
-                    "• Network connectivity issues\n"
-                    "• Rate limiting from search service\n"
-                    "• Invalid search terms\n"
-                    f"Error details: {str(search_error)}"
-                )
-            }
-        
-        
-    except requests.exceptions.Timeout:
-        return {
-            "status": "error",
-            "error_message": "Search request timed out. Please check your internet connection and try again."
-        }
-    except requests.exceptions.RequestException as e:
-        return {
-            "status": "error",
-            "error_message": f"Network error during search: {str(e)}"
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error_message": f"Unexpected error during search: {str(e)}"
-        }
+            error_str = str(search_error).lower()
+            
+            # Check if this is a rate limit error that we should retry
+            is_rate_limit = any(keyword in error_str for keyword in [
+                'rate', 'limit', '429', '502', '503', '504', 'timeout', 'ratelimit'
+            ])
+            
+            if is_rate_limit and attempt < max_retries:
+                # Calculate exponential backoff delay
+                delay = base_delay * (2 ** attempt)
+                print(f"⚠️ Rate limit detected (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay} seconds...")
+                time.sleep(delay)
+                continue
+            else:
+                # Final attempt or non-retryable error
+                print(f"⚠️ DuckDuckGo search failed: {search_error}")
+                return {
+                    "status": "error",
+                    "error_message": (
+                        f"Search failed for '{query}' after {attempt + 1} attempts. This could be due to:\n"
+                        "• Network connectivity issues\n"
+                        "• Rate limiting from search service\n"
+                        "• Invalid search terms\n"
+                        f"Error details: {str(search_error)}"
+                    )
+                }
+    
+    # If we get here, all retries have been exhausted
+    return {
+        "status": "error",
+        "error_message": f"Search failed for '{query}' after {max_retries + 1} attempts. All retries exhausted."
+    }
 
 
 # Import FunctionTool for Google ADK compatibility
 from google.adk.tools import FunctionTool
+
+# Import financial tools
+try:
+    from tools.gadk.financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+    FINANCIAL_AVAILABLE = True
+except ImportError:
+    try:
+        from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+        FINANCIAL_AVAILABLE = True
+    except ImportError:
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(__file__))
+            from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+            FINANCIAL_AVAILABLE = True
+        except ImportError:
+            FINANCIAL_AVAILABLE = False
+            print("Warning: Financial tools not available")
 
 # Wrap functions with FunctionTool for Google ADK agent usage
 current_time_tool = FunctionTool(get_current_time)
@@ -369,12 +398,19 @@ AVAILABLE_TOOLS = [
     google_search_tool
 ]
 
+# Add financial tools if available
+if FINANCIAL_AVAILABLE:
+    AVAILABLE_TOOLS.extend(FINANCIAL_TOOLS)
+
 # Also provide the raw functions for direct testing
 RAW_FUNCTIONS = [
     get_current_time,
     get_temperature,
     google_search
 ]
+
+if FINANCIAL_AVAILABLE:
+    RAW_FUNCTIONS.extend([get_earnings_report, get_company_news])
 
 
 if __name__ == "__main__":
@@ -416,4 +452,34 @@ if __name__ == "__main__":
     print(f"✅ current_time_tool: {type(current_time_tool)}")
     print(f"✅ temperature_tool: {type(temperature_tool)}")
     print(f"✅ google_search_tool: {type(google_search_tool)}")
+    
+    if FINANCIAL_AVAILABLE:
+        print(f"✅ Financial tools available: {len(FINANCIAL_TOOLS)} tools")
+        print(f"✅ Testing earnings report tool:")
+        result = get_earnings_report("NFLX", "US")
+        print(f"   Status: {result['status']}")
+        if result['status'] == 'success':
+            if 'data' in result and 'company' in result['data']:
+                company_data = result['data']['company']
+                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['symbol']})")
+                print(f"   Market: {company_data['market']}")
+                print(f"   Quarters: {result['data']['report_metadata']['quarters_included']}")
+            else:
+                print(f"   Sample JSON: {result['report'][:200]}...")
+        print(result)
+
+        print(f"✅ Testing company news tool:")
+        result = get_company_news("AAPL", 2, "US")
+        print(f"   Status: {result['status']}")
+        if result['status'] == 'success':
+            if 'data' in result and 'company' in result['data']:
+                company_data = result['data']['company']
+                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['identifier']})")
+                print(f"   Market: {company_data['market']}")
+                print(f"   Articles: {result['data']['report_metadata']['articles_count']}")
+            else:
+                print(f"   Sample JSON: {result['report'][:200]}...")
+    else:
+        print(f"⚠️  Financial tools not available")
+    
     print(f"✅ AVAILABLE_TOOLS has {len(AVAILABLE_TOOLS)} tools ready for Google ADK agent")

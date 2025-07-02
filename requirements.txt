@@ -10,4 +10,4 @@ litellm>=1.35.0
 python-dotenv==1.0.0
 pytz==2024.1
 requests>=2.32.4
-duckduckgo-search>=8.0.0
+duckduckgo-search==6.3.5

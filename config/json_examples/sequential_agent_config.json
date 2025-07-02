@@ -8,7 +8,7 @@
             "name": "TimeAgent",
             "class": "Agent",
             "module": "google.adk.agents",
-            "model": "openai:gpt-4o",
+            "model": "openai/gpt-4o",
             "instruction": "You are a time agent. Your only job is to get the time in Taipei.",
             "tools": ["get_taipei_time"]
         },
@@ -16,7 +16,7 @@
             "name": "WeatherAgent",
             "class": "Agent",
             "module": "google.adk.agents",
-            "model": "openai:gpt-4o",
+            "model": "openai/gpt-4o",
             "instruction": "You are a weather agent. Your only job is to get the weather in a given location.",
             "tools": ["get_temperature"]
         }

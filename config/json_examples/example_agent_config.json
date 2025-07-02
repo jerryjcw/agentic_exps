@@ -1,6 +1,8 @@
 {
     "name": "MyAwesomeAgent",
-    "model": "openai:gpt-4o",
+    "class": "Agent",
+    "module": "google.adk.agents",
+    "model": "openai/gpt-4o",
     "instruction": "You are an awesome assistant that can search the web and tell the time.",
     "tools": [
         "get_taipei_time",
