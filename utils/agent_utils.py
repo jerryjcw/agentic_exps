@@ -8,7 +8,7 @@ execution steps.
 """
 
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List
 
 
@@ -24,6 +24,7 @@ class ExecutionStep:
     end_time: Optional[datetime.datetime] = None
     events_generated: int = 0
     output_preview: str = ""
+    sub_steps: List['ExecutionStep'] = field(default_factory=list)  # Nested steps if any
 
 
 def analyze_agent_structure(agent):
@@ -141,7 +142,7 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
     Returns:
         List[ExecutionStep]: List of ExecutionStep objects for all agents
     """
-    execution_steps = []
+    execution_steps = {}
     visited_agents = set()  # Track visited agents by object id to prevent cycles
     step_counter = [1]  # Use list to allow modification in nested function
     
@@ -187,7 +188,7 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
             description_suffix += f" under {parent_name}"
         
         step = _create_execution_step(current_agent, step_id, description_suffix)
-        execution_steps.append(step)
+        execution_steps[step.agent_name] = step
         step_counter[0] += 1
         
         # Recursively process sub-agents if they exist
@@ -195,6 +196,10 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
             current_agent_name = getattr(current_agent, 'name', 'Unknown Agent')
             for sub_agent in current_agent.sub_agents:
                 _dfs_collect_agents(sub_agent, depth + 1, current_agent_name)
+            for sub_agent in current_agent.sub_agents:
+                name = getattr(sub_agent, 'name', 'Unknown Agent')
+                if name in execution_steps:
+                    execution_steps[current_agent_name].sub_steps.append(execution_steps[name])
     
     # Start DFS from the main agent
     _dfs_collect_agents(agent)
@@ -216,9 +221,11 @@ def display_execution_steps_summary(execution_steps):
     print(f"\nStep Details:")
     print("-" * 40)
     
-    for step in execution_steps:
+    for step_name in execution_steps:
+        step = execution_steps[step_name]
         print(f"🔄 {step.step_id}: {step.agent_name}")
         print(f"   Type: {step.agent_type}")
         print(f"   Description: {step.description}")
         print(f"   Status: {step.status}")
+        print(f"   sub_steps: {[s.agent_name for s in step.sub_steps]}")
         print()

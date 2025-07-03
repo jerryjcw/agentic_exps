@@ -122,7 +122,7 @@ def _save_analysis_results(input_path, agent, event_count, full_response, code_c
     return str(output_file), str(json_file)
 
 
-async def run_agent_with_input(agent, input_file_path):
+async def run_agent_with_input(agent, input_file_path, execution_steps):
     """
     Run the agent with actual code input for analysis.
     
@@ -223,6 +223,11 @@ Provide specific recommendations with examples where possible."""
             if hasattr(event, 'actions'):
                 print(f"📌 Actions: transfer_to_agent = {event.actions.transfer_to_agent}, escalate = {event.actions.escalate}")
             print(f"Session state: {session.state}")
+            author, error_code = getattr(event, 'author', 'unknown'), getattr(event, 'error_code', None)
+            if author in execution_steps and not error_code:
+                print(f"📌 Agent: {execution_steps[author].agent_name} ({execution_steps[author].agent_type}) finished.")
+                execution_steps[author].events_generated += 1
+                execution_steps[author].end_time = datetime.datetime.now().isoformat()
 
             # Process event content
             if hasattr(event, 'content') and event.content:
@@ -306,7 +311,7 @@ async def main_async():
         # Run agent analysis
         input_file = Path(__file__).parent.parent / "agent_io" / "agent_io.py"
         print(f"\nExecuting agent analysis on: {input_file}")
-        results = await run_agent_with_input(agent, input_file)
+        results = await run_agent_with_input(agent, input_file, execution_steps)
         
         # Display results
         if results:
