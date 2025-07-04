@@ -1,12 +1,12 @@
 {
-    "job_name": "CodeImprovementAnalysis",
-    "job_description": "Analyze Python code for security vulnerabilities, performance bottlenecks, code quality issues, and testing gaps",
+    "job_name": "SimpleCodeImprovementAnalysis",
+    "job_description": "[Simplified] Analyze Python code for security vulnerabilities, performance bottlenecks, code quality issues, and testing gaps",
     "job_type": "code_analysis",
     "runner_config": {
-        "app_name": "CodeImprovementAnalysis",
+        "app_name": "SimpleCodeImprovementAnalysis",
         "session_config": {
-            "user_id": "code_analyzer",
-            "session_id": "analysis_session"
+            "user_id": "simple_code_analyzer",
+            "session_id": "simple_analysis_session"
         }
     },
     "agent_config": {
@@ -21,7 +21,7 @@
         "preview_length": 500
     },
     "analysis_config": {
-        "user_query_template": "Please analyze the following Python code for improvements:\n\nFile: {file_name}\nLanguage: {language}\nFramework: {framework}\n\nCode to analyze:\n```python\n{code_content}\n```\n\nPlease provide a comprehensive analysis focusing on:\n1. Security vulnerabilities and defensive measures\n2. Performance bottlenecks and optimization opportunities\n3. Code quality issues and maintainability improvements\n4. Testing gaps and coverage recommendations\n\nProvide specific recommendations with examples where possible.",
+        "template_config_path": "config/template/simple_code_improvement.json",
         "analysis_focus": [
             "Security vulnerabilities and defensive measures",
             "Performance bottlenecks and optimization opportunities",
@@ -31,18 +31,13 @@
     },
     "output_config": {
         "output_directory": "output",
-        "output_format": ["txt", "json"],
+        "output_format": [
+            "txt",
+            "json"
+        ],
         "file_naming": "code_analysis_{input_filename}_{timestamp}",
         "timestamp_format": "%Y%m%d_%H%M%S",
-        "include_metadata": true,
-        "metadata_fields": [
-            "analysis_date",
-            "input_file",
-            "agent_name",
-            "events_generated",
-            "file_size",
-            "lines_of_code"
-        ]
+        "include_metadata": true
     },
     "execution_config": {
         "track_execution_steps": true,

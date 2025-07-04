@@ -27,6 +27,53 @@ from utils import analyze_agent_structure, display_agent_readiness
 from utils.agent_utils import collect_agent_execution_steps, display_execution_steps_summary, ExecutionStep, maintain_execution_status, report_finished_steps
 
 
+def load_job_config(job_config_path):
+    """Load job configuration from JSON file."""
+    with open(job_config_path, 'r') as f:
+        return json.load(f)
+
+
+def load_template_config(template_config_path):
+    """Load template configuration from JSON file."""
+    with open(template_config_path, 'r') as f:
+        return json.load(f)
+
+
+def synthesize_user_query_jinja2(template_config, analysis_config, input_config, code_content, file_name):
+    """Synthesize user query using Jinja2 template."""
+    try:
+        from jinja2 import Template
+    except ImportError:
+        logging.error("Jinja2 not installed. Please install with: pip install jinja2")
+        raise
+    
+    # Get template content
+    template_content = template_config.get('template_content', '')
+    language_mapping = template_config.get('language_mapping', {})
+    
+    # Prepare template variables
+    language = input_config.get('language', 'Python')
+    framework = input_config.get('framework', 'Generic')
+    language_code_block = language_mapping.get(language, language.lower())
+    analysis_focus = analysis_config.get('analysis_focus', [])
+    
+    # Template variables
+    template_vars = {
+        'language': language,
+        'file_name': file_name,
+        'framework': framework,
+        'language_code_block': language_code_block,
+        'code_content': code_content,
+        'analysis_focus': analysis_focus
+    }
+    
+    # Render template
+    template = Template(template_content)
+    rendered_query = template.render(**template_vars)
+    
+    return rendered_query
+
+
 emojis = ["👤", "🤖", "💡", "🔍", "⚙️", "📊", "🛠️", "📈", "📝", "✅", "🌟", 
           "🚀", "🎯", "🧩", "🔧", "📅", "💻", "🖥️", "📱", "🖨️", "🗂️", "🔒", 
           "🔑", "🧰", "🧪", "🧬", "🧫", "🧫", "🧪", "🧬"]
@@ -82,16 +129,19 @@ def create_agent_from_config_file(config_path):
     return agent
 
 
-def _save_analysis_results(input_path, agent, event_count, final_responses: Dict[str, str], code_content: str):
+def _save_analysis_results(input_path, agent, event_count, final_responses: Dict[str, str], code_content: str, job_config: dict):
     """Helper function to save analysis results to files."""
-    output_dir = Path(__file__).parent.parent / "output"
+    output_config = job_config.get('output_config', {})
+    output_dir = Path(__file__).parent.parent / output_config.get('output_directory', 'output')
     output_dir.mkdir(exist_ok=True)
     
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp_format = output_config.get('timestamp_format', '%Y%m%d_%H%M%S')
+    timestamp = datetime.datetime.now().strftime(timestamp_format)
     current_time = datetime.datetime.now()
     
     # Save text report
-    output_file = output_dir / f"code_analysis_{input_path.stem}_{timestamp}.txt"
+    file_naming = output_config.get('file_naming', 'code_analysis_{input_filename}_{timestamp}')
+    output_file = output_dir / f"{file_naming.format(input_filename=input_path.stem, timestamp=timestamp)}.txt"
     with open(output_file, 'w') as f:
         f.write(f"Code Improvement Analysis Report\n")
         f.write(f"================================\n\n")
@@ -121,7 +171,7 @@ def _save_analysis_results(input_path, agent, event_count, final_responses: Dict
         "code_analyzed": code_content
     }
     
-    json_file = output_dir / f"code_analysis_{input_path.stem}_{timestamp}.json"
+    json_file = output_dir / f"{file_naming.format(input_filename=input_path.stem, timestamp=timestamp)}.json"
     with open(json_file, 'w') as f:
         json.dump(json_output, f, indent=2)
     
@@ -131,7 +181,7 @@ def _save_analysis_results(input_path, agent, event_count, final_responses: Dict
     return str(output_file), str(json_file)
 
 
-async def run_agent(agent, user_query):
+async def run_agent(agent, user_query, job_config: dict):
     # Import all required modules at once
     from google.adk.runners import Runner
     from google.adk.sessions import InMemorySessionService
@@ -142,19 +192,22 @@ async def run_agent(agent, user_query):
     load_dotenv()
 
     try:
-        # Set up session and runner
+        # Set up session and runner using job config
+        runner_config = job_config.get('runner_config', {})
+        session_config = runner_config.get('session_config', {})
+        
         session_service = InMemorySessionService()
         runner = Runner(
-            app_name="CodeImprovementAnalysis",
+            app_name=runner_config.get('app_name', 'CodeImprovementAnalysis'),
             agent=agent,
             session_service=session_service
         )
         
         # Create session
         session = await session_service.create_session(
-            user_id="code_analyzer",
-            session_id="analysis_session",
-            app_name="CodeImprovementAnalysis"
+            user_id=session_config.get('user_id', 'code_analyzer'),
+            session_id=session_config.get('session_id', 'analysis_session'),
+            app_name=runner_config.get('app_name', 'CodeImprovementAnalysis')
         )
 
         message = types.Content(role="user", parts=[{"text": user_query}])
@@ -165,8 +218,8 @@ async def run_agent(agent, user_query):
         
         # Run agent and collect responses
         response_generator = runner.run(
-            user_id="code_analyzer",
-            session_id="analysis_session", 
+            user_id=session_config.get('user_id', 'code_analyzer'),
+            session_id=session_config.get('session_id', 'analysis_session'), 
             new_message=message
         )
         return response_generator, session
@@ -185,7 +238,7 @@ def log_event_details(event, session):
     logging.info(f"Session state: {session.state}")
 
 
-async def run_job(agent, input_file_path: str, execution_steps: Dict[str, ExecutionStep]):
+async def run_job(agent, input_file_path: str, execution_steps: Dict[str, ExecutionStep], job_config: dict):
     """
     Run the agent with actual code input for analysis.
     
@@ -227,28 +280,24 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
     logging.info("-" * 40)
     logging.info(f"\nExecuting agent workflow...")
 
-    # Create analysis request
-    user_query = f"""Please analyze the following Python code for improvements:
-
-File: {input_path.name}
-Language: Python
-Framework: Google ADK
-
-Code to analyze:
-```python
-{code_content}
-```
-
-Please provide a comprehensive analysis focusing on:
-1. Security vulnerabilities and defensive measures
-2. Performance bottlenecks and optimization opportunities  
-3. Code quality issues and maintainability improvements
-4. Testing gaps and coverage recommendations
-
-Provide specific recommendations with examples where possible."""
+    # Create analysis request using Jinja2 template synthesis
+    analysis_config = job_config.get('analysis_config', {})
+    input_config = job_config.get('input_config', {})
+    
+    # Load and synthesize template using Jinja2
+    template_config_path = analysis_config.get('template_config_path')
+    logging.info(f"Using template config path from job config: {template_config_path}")
+    template_full_path = Path(__file__).parent.parent / template_config_path
+    template_config = load_template_config(template_full_path)
+    
+    user_query = synthesize_user_query_jinja2(
+        template_config, analysis_config, input_config, 
+        code_content, input_path.name
+    )
+    logging.info(f"Synthesized query using Jinja2: {len(user_query)} characters")
 
     try:
-        response_generator, session = await run_agent(agent, user_query)
+        response_generator, session = await run_agent(agent, user_query, job_config)
         final_responses = {}
         event_count = 0
         
@@ -301,7 +350,7 @@ Provide specific recommendations with examples where possible."""
 
         # Save results
         output_file, json_file = _save_analysis_results(
-            input_path, agent, event_count, final_responses, code_content
+            input_path, agent, event_count, final_responses, code_content, job_config
         )
         
         return {
@@ -338,14 +387,21 @@ def _display_results_summary(results):
         logging.warning("No results returned from agent execution")
 
 
-async def main_async():
+async def main_async(job_name: str = "simple_code_improvement"):
     """Main async function that creates and runs the code improvement agent."""
-    logging.info("Code Improvement Agent - Live Execution Demo")
-    logging.info("=" * 60)
-
+    
     try:
-        # Create agent
-        config_path = Path(__file__).parent.parent / "config" / "agent" / "json_examples" / "simple_code_improvement.json"
+        # Load job configuration
+        job_config_path = Path(__file__).parent.parent / "config" / "job" / "json_examples" / f"{job_name}.json"
+        job_config = load_job_config(job_config_path)
+        
+        job_name = job_config.get('job_name', 'Code Improvement Agent')
+        logging.info(f"{job_name} - Live Execution Demo")
+        logging.info("=" * 60)
+
+        # Create agent using job config
+        agent_config = job_config.get('agent_config', {})
+        config_path = Path(__file__).parent.parent / agent_config.get('config_path', 'config/agent/json_examples/simple_code_improvement.json')
         logging.info("Creating Code Improvement Agent...")
         agent = create_agent_from_config_file(config_path)
         
@@ -354,20 +410,28 @@ async def main_async():
             return 1
         
         # Collect agent execution steps
-        logging.info(f"\nCollecting agent execution steps...")
-        execution_steps = collect_agent_execution_steps(agent)
-        logging.info(f"💡 Total execution steps collected: {len(execution_steps)}")
-        display_execution_steps_summary(execution_steps)
+        execution_config = job_config.get('execution_config', {})
+        if execution_config.get('track_execution_steps', True):
+            logging.info(f"\nCollecting agent execution steps...")
+            execution_steps = collect_agent_execution_steps(agent)
+            logging.info(f"💡 Total execution steps collected: {len(execution_steps)}")
+            if execution_config.get('display_progress', True):
+                display_execution_steps_summary(execution_steps)
+        else:
+            execution_steps = {}
         
-        # Run agent analysis
-        input_file = Path(__file__).parent.parent / "agent_io" / "agent_io.py"
+        # Run agent analysis using job config
+        input_config = job_config.get('input_config', {})
+        input_file = Path(__file__).parent.parent / input_config.get('input_file_path', 'agent_io/agent_io.py')
         logging.info(f"\n💡 Executing agent analysis on: {input_file}")
-        results = await run_job(agent, input_file, execution_steps)
+        results = await run_job(agent, input_file, execution_steps, job_config)
         
         # Display results
-        if results:
+        report_config = job_config.get('report_config', {})
+        if results and report_config.get('display_results_summary', True):
             _display_results_summary(results)
-            report_finished_steps(execution_steps)
+            if execution_config.get('track_execution_steps', True):
+                report_finished_steps(execution_steps)
         
         logger.info("\n" + "=" * 60)
         logger.info("Agent execution completed successfully!")
@@ -383,4 +447,11 @@ async def main_async():
 
 
 if __name__ == "__main__":
-    asyncio.run(main_async())
+    # Add argparse support for command line execution
+    import argparse
+    parser = argparse.ArgumentParser(description="Run the Code Improvement Agent with a specified job configuration.")
+    parser.add_argument('--job_name', type=str, default='simple_code_improvement',
+                        help='Name of the job configuration to run (default: simple_code_improvement)')
+    args = parser.parse_args()
+    job_name = args.job_name
+    asyncio.run(main_async(job_name))
