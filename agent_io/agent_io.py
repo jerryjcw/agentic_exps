@@ -268,37 +268,3 @@ def _validate_agent_parameters(agent_class_name: str, agent_args: dict):
     unexpected_params = set(agent_args.keys()) - all_expected
     if unexpected_params:
         print(f"Warning: {agent_class_name} received unexpected parameters: {unexpected_params}")
-
-def create_comprehensive_agent_config(agent_config: dict) -> dict:
-    """
-    Creates a comprehensive agent configuration with all supported parameters.
-    
-    This function ensures that all agent parameters are properly structured
-    and provides defaults for optional parameters.
-    
-    Args:
-        agent_config (dict): Basic agent configuration
-        
-    Returns:
-        dict: Comprehensive agent configuration with all parameters
-    """
-    # Define default values for all supported parameters
-    defaults = {
-        "name": "UnnamedAgent",
-        "model": None,
-        "instruction": None,
-        "description": None,
-        "output_key": None,
-        "tools": [],
-        "sub_agents": [],
-        "max_iterations": None,
-        "class": "Agent",
-        "module": "google.adk.agents"
-    }
-    
-    # Start with defaults and override with provided config
-    comprehensive_config = defaults.copy()
-    comprehensive_config.update(agent_config)
-    
-    return comprehensive_config
-

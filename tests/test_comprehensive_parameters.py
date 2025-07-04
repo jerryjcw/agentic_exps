@@ -21,7 +21,6 @@ from google.adk.tools import FunctionTool
 from agent_io.agent_io import (
     save_agent_to_config, 
     create_agent_from_config,
-    create_comprehensive_agent_config
 )
 
 class TestComprehensiveAgentParameters(unittest.TestCase):
@@ -178,33 +177,6 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
                         getattr(loaded_agent.sub_agents[0], 'description', None))
         self.assertEqual(getattr(original_agent.sub_agents[1], 'description', None),
                         getattr(loaded_agent.sub_agents[1], 'description', None))
-
-    def test_comprehensive_config_creation(self):
-        """Test the create_comprehensive_agent_config function."""
-        basic_config = {
-            "name": "BasicAgent",
-            "model": "test-model"
-        }
-        
-        comprehensive_config = create_comprehensive_agent_config(basic_config)
-        
-        # Verify all expected keys are present
-        expected_keys = [
-            'name', 'model', 'instruction', 'description', 'output_key', 
-            'tools', 'sub_agents', 'max_iterations', 'class', 'module'
-        ]
-        
-        for key in expected_keys:
-            self.assertIn(key, comprehensive_config)
-        
-        # Verify provided values are preserved
-        self.assertEqual(comprehensive_config['name'], 'BasicAgent')
-        self.assertEqual(comprehensive_config['model'], 'test-model')
-        
-        # Verify defaults are set
-        self.assertEqual(comprehensive_config['tools'], [])
-        self.assertEqual(comprehensive_config['sub_agents'], [])
-        self.assertIsNone(comprehensive_config['instruction'])
 
     def test_financial_tools_integration(self):
         """Test that financial tools can be serialized and deserialized."""
