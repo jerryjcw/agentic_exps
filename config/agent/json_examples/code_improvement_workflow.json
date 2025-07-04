@@ -1,0 +1,131 @@
+{
+    "name": "CodeImprovementWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "A comprehensive code improvement workflow that analyzes codebases, identifies issues, and implements improvements following software engineering best practices.",
+    "sub_agents": [
+        {
+            "name": "CodebaseAnalysisAgent",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a senior software engineer specializing in code analysis. Analyze the provided codebase to understand its structure, technologies used, coding patterns, and overall architecture. Identify the main components, dependencies, and design patterns.",
+            "description": "Analyzes codebase structure and architecture",
+            "output_key": "codebase_analysis",
+            "tools": [
+                {
+                    "class": "FunctionTool",
+                    "module": "google.adk.tools",
+                    "function_name": "google_search",
+                    "function_module": "tools.gadk.tools"
+                }
+            ]
+        },
+        {
+            "name": "IssueIdentificationLoop",
+            "class": "LoopAgent",
+            "module": "google.adk.agents",
+            "description": "Iteratively identifies different types of code issues",
+            "max_iterations": 1,
+            "sub_agents": [
+                {
+                    "name": "SecurityAnalyzer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a cybersecurity specialist focused on defensive security. Analyze the code for security vulnerabilities, insecure patterns, and potential attack vectors. Focus on input validation, authentication, authorization, data exposure, and secure coding practices. Provide specific remediation recommendations.",
+                    "description": "Identifies security vulnerabilities and defensive measures",
+                    "output_key": "security_issues"
+                },
+                {
+                    "name": "PerformanceAnalyzer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a performance optimization expert. Analyze the code for performance bottlenecks, inefficient algorithms, memory leaks, and scalability issues. Identify areas where performance can be improved through better algorithms, caching, or optimization techniques.",
+                    "description": "Identifies performance bottlenecks and optimization opportunities",
+                    "output_key": "performance_issues"
+                },
+                {
+                    "name": "CodeQualityAnalyzer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a code quality expert. Analyze the code for maintainability issues, code smells, design pattern violations, and adherence to coding standards. Look for duplicated code, complex functions, unclear naming, and opportunities for refactoring.",
+                    "description": "Identifies code quality and maintainability issues",
+                    "output_key": "quality_issues"
+                },
+                {
+                    "name": "TestCoverageAnalyzer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a testing specialist. Analyze the codebase for test coverage gaps, missing test cases, and testing best practices. Identify critical paths that lack testing and recommend test strategies for different components.",
+                    "description": "Identifies testing gaps and coverage issues",
+                    "output_key": "testing_issues"
+                }
+            ]
+        },
+        {
+            "name": "SolutionDesignParallel",
+            "class": "ParallelAgent",
+            "module": "google.adk.agents",
+            "description": "Parallel design of improvement solutions",
+            "sub_agents": [
+                {
+                    "name": "ArchitecturalDesigner",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a software architect. Based on the identified issues, design architectural improvements and refactoring strategies. Consider design patterns, separation of concerns, modularity, and long-term maintainability. Propose specific architectural changes with clear rationale.",
+                    "description": "Designs architectural improvements and refactoring strategies",
+                    "output_key": "architectural_design"
+                },
+                {
+                    "name": "ImplementationPlanner",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a technical lead responsible for implementation planning. Create detailed implementation plans for the identified improvements, including step-by-step instructions, priority ordering, risk assessment, and estimated effort. Consider dependencies and minimize disruption to existing functionality.",
+                    "description": "Creates detailed implementation plans for improvements",
+                    "output_key": "implementation_plan"
+                },
+                {
+                    "name": "BestPracticesResearcher",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a software engineering researcher. Research current best practices, industry standards, and modern techniques relevant to the identified issues. Provide recommendations based on proven patterns and emerging trends in software development.",
+                    "description": "Researches best practices and modern development techniques",
+                    "output_key": "best_practices",
+                    "tools": [
+                        {
+                            "class": "FunctionTool",
+                            "module": "google.adk.tools",
+                            "function_name": "google_search",
+                            "function_module": "tools.gadk.tools"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "QualityAssuranceReview",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a senior technical reviewer. Review all the analysis, identified issues, and proposed solutions for completeness, feasibility, and alignment with software engineering best practices. Ensure that the recommendations are practical, well-prioritized, and consider the broader impact on the system.",
+            "description": "Reviews and validates all improvement recommendations",
+            "output_key": "qa_review"
+        },
+        {
+            "name": "DocumentationGenerator",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a technical documentation specialist. Create comprehensive documentation for the code improvement recommendations, including: 1) Executive Summary, 2) Current State Analysis, 3) Identified Issues by Category, 4) Recommended Solutions, 5) Implementation Roadmap, 6) Risk Assessment, 7) Success Metrics. Ensure the documentation is clear, actionable, and suitable for both technical and non-technical stakeholders.",
+            "description": "Generates comprehensive improvement documentation",
+            "output_key": "improvement_documentation"
+        }
+    ]
+}

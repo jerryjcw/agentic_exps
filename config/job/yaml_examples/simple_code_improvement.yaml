@@ -1,0 +1,50 @@
+job_name: "SimpleCodeImprovementAnalysis"
+job_description: "[Simplified] Analyze Python code for security vulnerabilities, performance bottlenecks, code quality issues, and testing gaps"
+job_type: "code_analysis"
+
+runner_config:
+  app_name: "SimpleCodeImprovementAnalysis"
+  session_config:
+    user_id: "simple_code_analyzer"
+    session_id: "simple_analysis_session"
+
+agent_config:
+  config_path: "config/agent/yaml_examples/simple_code_improvement.yaml"
+  config_type: "file"
+
+input_config:
+  input_file_path: "agent_io/agent_io.py"
+  input_type: "file"
+  language: "Python"
+  framework: "Google ADK"
+  preview_length: 500
+
+analysis_config:
+  template_config_path: "config/template/simple_code_improvement.yaml"
+  analysis_focus:
+    - "Security vulnerabilities and defensive measures"
+    - "Performance bottlenecks and optimization opportunities"
+    - "Code quality issues and maintainability improvements"
+    - "Testing gaps and coverage recommendations"
+
+output_config:
+  output_directory: "output"
+  output_format:
+    - "txt"
+    - "json"
+  file_naming: "code_analysis_{input_filename}_{timestamp}"
+  timestamp_format: "%Y%m%d_%H%M%S"
+  include_metadata: true
+
+execution_config:
+  track_execution_steps: true
+  display_progress: true
+  log_level: "INFO"
+  error_handling: "continue_on_agent_failure"
+  timeout_seconds: 300
+
+report_config:
+  include_final_responses: true
+  include_code_preview: true
+  include_execution_summary: true
+  display_results_summary: true

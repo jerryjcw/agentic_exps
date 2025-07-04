@@ -1,0 +1,116 @@
+{
+    "name": "FinancialAnalysisWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "A comprehensive financial analysis workflow that processes company data, generates reports, and provides recommendations.",
+    "sub_agents": [
+        {
+            "name": "DataCollectionAgent",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a financial data collection specialist. Your task is to gather comprehensive financial information about companies using available tools. Collect earnings data, recent news, and relevant financial metrics.",
+            "description": "Collects financial data including earnings reports and company news",
+            "output_key": "financial_data",
+            "tools": [
+                {
+                    "class": "FunctionTool",
+                    "module": "google.adk.tools",
+                    "function_name": "get_earnings_report",
+                    "function_module": "tools.gadk.financial_tools"
+                },
+                {
+                    "class": "FunctionTool", 
+                    "module": "google.adk.tools",
+                    "function_name": "get_company_news",
+                    "function_module": "tools.gadk.financial_tools"
+                },
+                {
+                    "class": "FunctionTool",
+                    "module": "google.adk.tools", 
+                    "function_name": "google_search",
+                    "function_module": "tools.gadk.tools"
+                }
+            ]
+        },
+        {
+            "name": "AnalysisLoop",
+            "class": "LoopAgent",
+            "module": "google.adk.agents",
+            "description": "Performs iterative analysis of the collected financial data",
+            "max_iterations": 3,
+            "sub_agents": [
+                {
+                    "name": "FinancialAnalyzer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a financial analyst. Analyze the provided financial data and identify key trends, strengths, weaknesses, and potential risks. Focus on earnings growth, market performance, and competitive positioning. Calculate key financial ratios and compare against industry benchmarks.",
+                    "description": "Analyzes financial data for trends and insights",
+                    "output_key": "analysis_insights"
+                },
+                {
+                    "name": "RiskAssessmentAgent",
+                    "class": "Agent", 
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a risk assessment specialist. Evaluate the financial risks, market risks, and operational risks based on the analysis. Provide risk ratings (High/Medium/Low) and specific mitigation recommendations for each identified risk.",
+                    "description": "Assesses financial and market risks",
+                    "output_key": "risk_assessment"
+                },
+                {
+                    "name": "MarketComparator",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a market comparison analyst. Use search tools to find peer companies and industry benchmarks. Compare the target company's performance against competitors in the same sector.",
+                    "description": "Compares company performance against market peers",
+                    "output_key": "market_comparison",
+                    "tools": [
+                        {
+                            "class": "FunctionTool",
+                            "module": "google.adk.tools",
+                            "function_name": "google_search",
+                            "function_module": "tools.gadk.tools"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "QualityAssurance",
+            "class": "ParallelAgent",
+            "module": "google.adk.agents",
+            "description": "Parallel quality checks on the analysis",
+            "sub_agents": [
+                {
+                    "name": "DataValidator",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are a data validation specialist. Review all collected financial data for accuracy, completeness, and consistency. Flag any anomalies or missing critical information.",
+                    "description": "Validates data quality and completeness",
+                    "output_key": "data_validation"
+                },
+                {
+                    "name": "AnalysisReviewer",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "openai/gpt-4o",
+                    "instruction": "You are an analysis reviewer. Examine the financial analysis and risk assessment for logical consistency, bias, and completeness. Ensure all conclusions are properly supported by data.",
+                    "description": "Reviews analysis quality and logic",
+                    "output_key": "analysis_review"
+                }
+            ]
+        },
+        {
+            "name": "ReportGenerationAgent",
+            "class": "Agent",
+            "module": "google.adk.agents", 
+            "model": "openai/gpt-4o",
+            "instruction": "You are a financial report writer. Create a comprehensive financial analysis report based on all collected data, analysis insights, risk assessments, market comparisons, and quality reviews. Structure the report with: 1) Executive Summary, 2) Company Overview, 3) Financial Performance Analysis, 4) Risk Assessment, 5) Market Position, 6) Investment Recommendations, 7) Appendices with supporting data.",
+            "description": "Generates comprehensive financial analysis reports",
+            "output_key": "final_report"
+        }
+    ]
+}

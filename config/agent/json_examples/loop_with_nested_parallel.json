@@ -1,0 +1,33 @@
+{
+    "name": "MainLoopAgent",
+    "class": "LoopAgent",
+    "module": "google.adk.agents",
+    "description": "A loop agent with a nested parallel workflow.",
+    "max_iterations": 10,
+    "sub_agents": [
+        {
+            "name": "NestedParallel",
+            "class": "ParallelAgent",
+            "module": "google.adk.agents",
+            "description": "A parallel workflow inside a loop.",
+            "sub_agents": [
+                {
+                    "name": "ParSub1",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "model-x",
+                    "instruction": "One parallel task.",
+                    "tools": []
+                },
+                {
+                    "name": "ParSub2",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "model-y",
+                    "instruction": "Another parallel task.",
+                    "tools": []
+                }
+            ]
+        }
+    ]
+}

@@ -3,46 +3,150 @@
 Google ADK Compatible Tools
 
 This module provides tools that can be used with Google ADK agents:
-1. get_taipei_time - Gets current time in Taipei, Taiwan
+1. get_current_time - Gets current time for any city worldwide
 2. get_temperature - Gets current temperature for a given location
+3. google_search - Performs Google search queries
+4. get_earnings_report - Gets earnings data for companies in US, UK, Germany, France markets
+5. get_company_news - Gets recent news articles for companies by name or stock symbol
 """
 
 import datetime
 import pytz
 import requests
 import os
+import time
 from typing import Dict
 
 
-def get_taipei_time() -> Dict[str, str]:
+def get_current_time(city: str) -> Dict[str, str]:
     """
-    Gets the current time in Taipei, Taiwan.
+    Gets the current time for any city worldwide.
     
-    This tool retrieves the current date and time in Taipei timezone
-    and returns it in a human-readable format.
+    This tool retrieves the current date and time in the specified city's timezone
+    and returns it in a human-readable format by using a timezone lookup service.
+    
+    Args:
+        city (str): The name of the city to get the current time for
     
     Returns:
         dict: A dictionary containing:
             - status: "success" or "error"
-            - report: Current time in Taipei formatted as string
+            - report: Current time in the specified city formatted as string
             - error_message: Error description if status is "error"
     """
     try:
-        # Get current time in Taipei timezone
-        taipei_tz = pytz.timezone('Asia/Taipei')
-        current_time = datetime.datetime.now(taipei_tz)
-        
-        # Format the time nicely
-        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
-        
-        return {
-            "status": "success",
-            "report": f"Current time in Taipei, Taiwan: {formatted_time}"
+        # Use TimeZoneDB API to get timezone for the city
+        # This is a free service that doesn't require API key for basic usage
+        base_url = "http://api.timezonedb.com/v2.1/get-time-zone"
+        params = {
+            'key': 'demo',  # Free demo key with limited requests
+            'format': 'json',
+            'by': 'city',
+            'city': city
         }
+        
+        headers = {
+            'User-Agent': 'TimeZone-Tool/1.0'
+        }
+        
+        response = requests.get(base_url, params=params, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('status') == 'OK':
+                # Extract timezone information
+                zone_name = data.get('zoneName')
+                formatted_time = data.get('formatted')
+                
+                if zone_name and formatted_time:
+                    # Parse and reformat the time
+                    try:
+                        # Parse the returned time and format it nicely
+                        dt = datetime.datetime.strptime(formatted_time, "%Y-%m-%d %H:%M:%S")
+                        display_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        return {
+                            "status": "success",
+                            "report": f"Current time in {city}: {display_time} ({zone_name})"
+                        }
+                    except ValueError:
+                        # If parsing fails, use the original formatted time
+                        return {
+                            "status": "success",
+                            "report": f"Current time in {city}: {formatted_time} ({zone_name})"
+                        }
+                else:
+                    return {
+                        "status": "error",
+                        "error_message": f"Incomplete timezone data received for city '{city}'"
+                    }
+            else:
+                # API returned an error
+                error_msg = data.get('message', 'Unknown error from timezone service')
+                return {
+                    "status": "error",
+                    "error_message": f"Timezone lookup failed for '{city}': {error_msg}"
+                }
+        else:
+            # Fallback: try to use pytz with common timezone patterns
+            return _get_time_with_fallback(city)
+            
+    except requests.exceptions.RequestException:
+        # Network error - use fallback
+        return _get_time_with_fallback(city)
     except Exception as e:
         return {
             "status": "error",
-            "error_message": f"Failed to get Taipei time: {str(e)}"
+            "error_message": f"Failed to get time for {city}: {str(e)}"
+        }
+
+
+def _get_time_with_fallback(city: str) -> Dict[str, str]:
+    """Fallback method using pytz for common cities when API fails."""
+    try:
+        # Common timezone patterns for major cities
+        common_timezones = {
+            'taipei': 'Asia/Taipei',
+            'tokyo': 'Asia/Tokyo',
+            'beijing': 'Asia/Shanghai',
+            'shanghai': 'Asia/Shanghai',
+            'london': 'Europe/London',
+            'paris': 'Europe/Paris',
+            'new york': 'America/New_York',
+            'los angeles': 'America/Los_Angeles',
+            'sydney': 'Australia/Sydney'
+        }
+        
+        city_lower = city.lower().strip()
+        
+        timezone_str = common_timezones.get(city_lower)
+        if not timezone_str:
+            # Try partial matches
+            for key, tz in common_timezones.items():
+                if city_lower in key or key in city_lower:
+                    timezone_str = tz
+                    break
+        
+        if timezone_str:
+            target_tz = pytz.timezone(timezone_str)
+            current_time = datetime.datetime.now(target_tz)
+            formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S %Z")
+            
+            return {
+                "status": "success",
+                "report": f"Current time in {city}: {formatted_time}"
+            }
+        else:
+            return {
+                "status": "error",
+                "error_message": f"Timezone not found for city '{city}'. Please try a major city like Tokyo, London, New York, etc."
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": f"Failed to get time for {city}: {str(e)}"
         }
 
 
@@ -148,24 +252,165 @@ def get_temperature(location: str) -> Dict[str, str]:
         }
 
 
+def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
+    """
+    Performs a Google search and returns the top results with retry mechanism.
+    
+    This tool uses DuckDuckGo search with retry and exponential backoff to handle
+    rate limits and temporary failures gracefully.
+    
+    Args:
+        query (str): The search query to execute
+        num_results (int): Number of results to return (default: 5, max: 10)
+        
+    Returns:
+        dict: A dictionary containing:
+            - status: "success" or "error"
+            - report: Search results if successful
+            - error_message: Error description if status is "error"
+    """
+    print(f"🔍 Performing Google search for: {query}")
+    
+    # Limit num_results to reasonable bounds
+    num_results = max(1, min(10, num_results))
+    
+    # Retry configuration
+    max_retries = 3
+    base_delay = 2  # seconds
+    
+    for attempt in range(max_retries + 1):
+        try:
+            # Import check
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                return {
+                    "status": "error", 
+                    "error_message": "DuckDuckGo search library is not installed. Please install it with: pip install duckduckgo-search"
+                }
+            
+            # Perform web search using the proper DuckDuckGo search library
+            with DDGS() as ddgs:
+                # Get search results
+                search_results = list(ddgs.text(
+                    keywords=query,
+                    region="wt-wt",
+                    safesearch="moderate", 
+                    max_results=num_results
+                ))
+                
+                if search_results:
+                    # Format the results nicely
+                    formatted_results = [f"Search Results for '{query}':\n"]
+                    
+                    for i, result in enumerate(search_results, 1):
+                        title = result.get('title', 'No title')
+                        href = result.get('href', '')
+                        body = result.get('body', 'No description available')
+                        
+                        # Truncate body if too long
+                        if len(body) > 1024:
+                            body = body[:1024] + "..."
+                        
+                        formatted_results.append(f"{i}. **{title}**")
+                        formatted_results.append(f"   {href}")
+                        formatted_results.append(f"   {body}")
+                        formatted_results.append("")  # Empty line between results
+                    
+                    report = "\n".join(formatted_results)
+                    print(f"🔍 Found {len(search_results)} search results")
+                    return {
+                        "status": "success",
+                        "report": report
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "error_message": f"No search results found for '{query}'. Try using different or more general search terms."
+                    }
+                    
+        except Exception as search_error:
+            error_str = str(search_error).lower()
+            
+            # Check if this is a rate limit error that we should retry
+            is_rate_limit = any(keyword in error_str for keyword in [
+                'rate', 'limit', '429', '502', '503', '504', 'timeout', 'ratelimit'
+            ])
+            
+            if is_rate_limit and attempt < max_retries:
+                # Calculate exponential backoff delay
+                delay = base_delay * (2 ** attempt)
+                print(f"⚠️ Rate limit detected (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay} seconds...")
+                time.sleep(delay)
+                continue
+            else:
+                # Final attempt or non-retryable error
+                print(f"⚠️ DuckDuckGo search failed: {search_error}")
+                return {
+                    "status": "error",
+                    "error_message": (
+                        f"Search failed for '{query}' after {attempt + 1} attempts. This could be due to:\n"
+                        "• Network connectivity issues\n"
+                        "• Rate limiting from search service\n"
+                        "• Invalid search terms\n"
+                        f"Error details: {str(search_error)}"
+                    )
+                }
+    
+    # If we get here, all retries have been exhausted
+    return {
+        "status": "error",
+        "error_message": f"Search failed for '{query}' after {max_retries + 1} attempts. All retries exhausted."
+    }
+
+
 # Import FunctionTool for Google ADK compatibility
 from google.adk.tools import FunctionTool
 
+# Import financial tools
+try:
+    from tools.gadk.financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+    FINANCIAL_AVAILABLE = True
+except ImportError:
+    try:
+        from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+        FINANCIAL_AVAILABLE = True
+    except ImportError:
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(__file__))
+            from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
+            FINANCIAL_AVAILABLE = True
+        except ImportError:
+            FINANCIAL_AVAILABLE = False
+            print("Warning: Financial tools not available")
+
 # Wrap functions with FunctionTool for Google ADK agent usage
-taipei_time_tool = FunctionTool(get_taipei_time)
+current_time_tool = FunctionTool(get_current_time)
 temperature_tool = FunctionTool(get_temperature)
+google_search_tool = FunctionTool(google_search)
 
 # Tool registry for easy import
 AVAILABLE_TOOLS = [
-    taipei_time_tool,
-    temperature_tool
+    current_time_tool,
+    temperature_tool,
+    google_search_tool
 ]
+
+# Add financial tools if available
+if FINANCIAL_AVAILABLE:
+    AVAILABLE_TOOLS.extend(FINANCIAL_TOOLS)
 
 # Also provide the raw functions for direct testing
 RAW_FUNCTIONS = [
-    get_taipei_time,
-    get_temperature
+    get_current_time,
+    get_temperature,
+    google_search
 ]
+
+if FINANCIAL_AVAILABLE:
+    RAW_FUNCTIONS.extend([get_earnings_report, get_company_news])
 
 
 if __name__ == "__main__":
@@ -173,9 +418,9 @@ if __name__ == "__main__":
     print("Testing Google ADK Tools")
     print("=" * 40)
     
-    # Test Taipei time tool (raw function)
-    print("\n1. Testing get_taipei_time (raw function):")
-    result = get_taipei_time()
+    # Test current time tool (raw function)
+    print("\n1. Testing get_current_time (raw function):")
+    result = get_current_time("Tokyo")
     print(f"Status: {result['status']}")
     if result['status'] == 'success':
         print(f"Report: {result['report']}")
@@ -192,8 +437,49 @@ if __name__ == "__main__":
     else:
         print(f"Error: {result['error_message']}")
     
+    # Test Google Search tool (raw function)
+    print("\n3. Testing google_search (raw function):")
+    test_query = "current USA president"
+    result = google_search(test_query, num_results=3)
+    print(f"Status: {result['status']}")
+    if result['status'] == 'success':
+        print(f"Report: {result['report'][:1024]}...")  # Show first 200 chars
+    else:
+        print(f"Error: {result['error_message']}")
+    
     # Test FunctionTool wrappers
-    print("\n3. Testing FunctionTool wrappers:")
-    print(f"✅ taipei_time_tool: {type(taipei_time_tool)}")
+    print("\n4. Testing FunctionTool wrappers:")
+    print(f"✅ current_time_tool: {type(current_time_tool)}")
     print(f"✅ temperature_tool: {type(temperature_tool)}")
+    print(f"✅ google_search_tool: {type(google_search_tool)}")
+    
+    if FINANCIAL_AVAILABLE:
+        print(f"✅ Financial tools available: {len(FINANCIAL_TOOLS)} tools")
+        print(f"✅ Testing earnings report tool:")
+        result = get_earnings_report("NFLX", "US")
+        print(f"   Status: {result['status']}")
+        if result['status'] == 'success':
+            if 'data' in result and 'company' in result['data']:
+                company_data = result['data']['company']
+                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['symbol']})")
+                print(f"   Market: {company_data['market']}")
+                print(f"   Quarters: {result['data']['report_metadata']['quarters_included']}")
+            else:
+                print(f"   Sample JSON: {result['report'][:200]}...")
+        print(result)
+
+        print(f"✅ Testing company news tool:")
+        result = get_company_news("AAPL", 2, "US")
+        print(f"   Status: {result['status']}")
+        if result['status'] == 'success':
+            if 'data' in result and 'company' in result['data']:
+                company_data = result['data']['company']
+                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['identifier']})")
+                print(f"   Market: {company_data['market']}")
+                print(f"   Articles: {result['data']['report_metadata']['articles_count']}")
+            else:
+                print(f"   Sample JSON: {result['report'][:200]}...")
+    else:
+        print(f"⚠️  Financial tools not available")
+    
     print(f"✅ AVAILABLE_TOOLS has {len(AVAILABLE_TOOLS)} tools ready for Google ADK agent")

@@ -1,0 +1,60 @@
+template_name: "Code Analysis Query Template (Jinja2)"
+template_description: "Jinja2 template for generating code analysis queries with dynamic content"
+template_version: "2.0"
+template_engine: "jinja2"
+
+template_content: |
+  Please analyze the following {{ language }} code for improvements:
+
+  File: {{ file_name }}
+  Language: {{ language }}
+  Framework: {{ framework }}
+
+  Code to analyze:
+  ```{{ language_code_block }}
+  {{ code_content }}
+  ```
+
+  Please provide a comprehensive analysis focusing on:
+  {% for item in analysis_focus -%}
+  {{ loop.index }}. {{ item }}
+  {% endfor %}
+  Provide specific recommendations with examples where possible.
+
+template_variables:
+  language:
+    description: "Programming language of the code"
+    type: "string"
+    default: "Python"
+  file_name:
+    description: "Name of the file being analyzed"
+    type: "string"
+    default: "unknown_file"
+  framework:
+    description: "Framework or toolkit being used"
+    type: "string"
+    default: "Generic"
+  language_code_block:
+    description: "Language identifier for code block formatting"
+    type: "string"
+    default: "python"
+  code_content:
+    description: "The actual code content to analyze"
+    type: "string"
+    default: "# No code provided"
+  analysis_focus:
+    description: "List of analysis focus areas"
+    type: "array"
+    default:
+      - "General code quality"
+      - "Basic improvements"
+
+language_mapping:
+  Python: "python"
+  JavaScript: "javascript"
+  Java: "java"
+  "C++": "cpp"
+  C: "c"
+  TypeScript: "typescript"
+  Go: "go"
+  Rust: "rust"

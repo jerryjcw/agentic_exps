@@ -1,0 +1,90 @@
+{
+    "name": "MainSequentialAgent",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "A complex sequential agent with deeply nested workflows.",
+    "sub_agents": [
+        {
+            "name": "Step1",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "step1-model",
+            "instruction": "The first step.",
+            "tools": []
+        },
+        {
+            "name": "OuterLoop",
+            "class": "LoopAgent",
+            "module": "google.adk.agents",
+            "description": "A loop as the second step of the main sequence.",
+            "max_iterations": 4,
+            "sub_agents": [
+                {
+                    "name": "OuterLoopSub1",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "outer-model-1",
+                    "instruction": "First step of outer loop.",
+                    "tools": []
+                },
+                {
+                    "name": "InnerLoop",
+                    "class": "LoopAgent",
+                    "module": "google.adk.agents",
+                    "description": "A loop nested inside another loop.",
+                    "max_iterations": 2,
+                    "sub_agents": [
+                        {
+                            "name": "InnerLoopSub",
+                            "class": "Agent",
+                            "module": "google.adk.agents",
+                            "model": "innermost-model",
+                            "instruction": "The deepest agent.",
+                            "tools": []
+                        }
+                    ]
+                },
+                {
+                    "name": "OuterLoopSub3",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "outer-model-2",
+                    "instruction": "Third step of outer loop.",
+                    "tools": []
+                }
+            ]
+        },
+        {
+            "name": "MyParallelAgent",
+            "class": "ParallelAgent",
+            "module": "google.adk.agents",
+            "description": "A parallel agent as the third step of the main sequence.",
+            "sub_agents": [
+                {
+                    "name": "ParallelSub1",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "parallel-model-1",
+                    "instruction": "First parallel task.",
+                    "tools": []
+                },
+                {
+                    "name": "ParallelSub2",
+                    "class": "Agent",
+                    "module": "google.adk.agents",
+                    "model": "parallel-model-2",
+                    "instruction": "Second parallel task.",
+                    "tools": []
+                }
+            ]
+        },
+        {
+            "name": "Step4",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "step4-model",
+            "instruction": "The final step.",
+            "tools": []
+        }
+    ]
+}
