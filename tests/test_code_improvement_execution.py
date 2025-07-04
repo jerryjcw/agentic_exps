@@ -22,8 +22,8 @@ class TestCodeImprovementExecution(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        self.config_dir = Path(__file__).parent.parent / "config" / "json_examples"
-        self.config_path = self.config_dir / "code_improvement_workflow.json"
+        self.config_dir = Path(__file__).parent.parent / "config" / "agent" / "yaml_examples"
+        self.config_path = self.config_dir / "code_improvement_workflow.yaml"
         
         # Sample code to analyze
         self.sample_code = '''
@@ -132,7 +132,7 @@ class UserManager:
             if agent.name == "IssueIdentificationLoop"
         )
         self.assertEqual(loop_agent.__class__.__name__, "LoopAgent")
-        self.assertEqual(loop_agent.max_iterations, 4)
+        self.assertEqual(loop_agent.max_iterations, 1)
         self.assertGreater(len(loop_agent.sub_agents), 0)
         
         # Test parallel agent
