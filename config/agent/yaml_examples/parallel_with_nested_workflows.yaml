@@ -1,0 +1,34 @@
+name: MainParallelAgent
+class: ParallelAgent
+module: google.adk.agents
+description: A parallel agent with complex nested workflows.
+sub_agents:
+- name: NestedLoop
+  class: LoopAgent
+  module: google.adk.agents
+  description: A loop inside a parallel workflow.
+  max_iterations: 3
+  sub_agents:
+  - name: LoopSub
+    class: Agent
+    module: google.adk.agents
+    model: model-a
+    instruction: This agent repeats itself.
+    tools: []
+- name: NestedSequential
+  class: SequentialAgent
+  module: google.adk.agents
+  description: A sequence inside a parallel workflow.
+  sub_agents:
+  - name: SeqSub1
+    class: Agent
+    module: google.adk.agents
+    model: model-b
+    instruction: First step in a sequence.
+    tools: []
+  - name: SeqSub2
+    class: Agent
+    module: google.adk.agents
+    model: model-c
+    instruction: Second step in a sequence.
+    tools: []

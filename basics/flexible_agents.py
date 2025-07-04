@@ -9,6 +9,7 @@ configuration files, with the code improvement workflow as a demonstration examp
 import os
 import sys
 import json
+import yaml
 import asyncio
 import datetime
 import logging
@@ -28,15 +29,21 @@ from utils.agent_utils import collect_agent_execution_steps, display_execution_s
 
 
 def load_job_config(job_config_path):
-    """Load job configuration from JSON file."""
+    """Load job configuration from YAML or JSON file."""
     with open(job_config_path, 'r') as f:
-        return json.load(f)
+        if str(job_config_path).endswith(('.yaml', '.yml')):
+            return yaml.safe_load(f)
+        else:
+            return json.load(f)
 
 
 def load_template_config(template_config_path):
-    """Load template configuration from JSON file."""
+    """Load template configuration from YAML or JSON file."""
     with open(template_config_path, 'r') as f:
-        return json.load(f)
+        if str(template_config_path).endswith(('.yaml', '.yml')):
+            return yaml.safe_load(f)
+        else:
+            return json.load(f)
 
 
 def synthesize_user_query_jinja2(template_config, analysis_config, input_config, code_content, file_name):
@@ -307,7 +314,6 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
             # Make the following paragraph a function.
             log_event_details(event, session)
 
-
             author, error_code = getattr(event, 'author', 'unknown'), getattr(event, 'error_code', None)
             if author in execution_steps:
                 step = execution_steps[author]
@@ -392,8 +398,20 @@ async def main_async(job_name: str = "simple_code_improvement"):
     
     try:
         # Load job configuration
-        job_config_path = Path(__file__).parent.parent / "config" / "job" / "json_examples" / f"{job_name}.json"
+        # Try YAML first, then fall back to JSON
+        yaml_path = Path(__file__).parent.parent / "config" / "job" / "yaml_examples" / f"{job_name}.yaml"
+        # json_path = Path(__file__).parent.parent / "config" / "job" / "json_examples" / f"{job_name}.json"
+        
+        if yaml_path.exists():
+            job_config_path = yaml_path
+            logging.info(f"Using YAML job config: {job_config_path}")
+        # elif json_path.exists():
+        #     job_config_path = json_path
+        #     logging.info(f"Using JSON job config: {job_config_path}")
+        else:
+            raise FileNotFoundError(f"No job config found for '{job_name}' in YAML or JSON format")
         job_config = load_job_config(job_config_path)
+        logging.info(f"Loaded job config: {job_config.get('job_name', 'Unknown')}")
         
         job_name = job_config.get('job_name', 'Code Improvement Agent')
         logging.info(f"{job_name} - Live Execution Demo")

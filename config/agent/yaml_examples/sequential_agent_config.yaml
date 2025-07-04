@@ -1,0 +1,20 @@
+name: MySequentialAgent
+class: SequentialAgent
+module: google.adk.agents
+description: A sequential agent that first gets the time and then the weather.
+sub_agents:
+- name: TimeAgent
+  class: Agent
+  module: google.adk.agents
+  model: openai/gpt-4o
+  instruction: You are a time agent. Your only job is to get the time in Taipei.
+  tools:
+  - get_taipei_time
+- name: WeatherAgent
+  class: Agent
+  module: google.adk.agents
+  model: openai/gpt-4o
+  instruction: You are a weather agent. Your only job is to get the weather in a given
+    location.
+  tools:
+  - get_temperature
