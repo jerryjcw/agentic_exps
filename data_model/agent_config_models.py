@@ -9,6 +9,7 @@ Google ADK agents from JSON configurations.
 from typing import List, Optional, Union, Any, Dict
 from pydantic import BaseModel, Field, field_validator, model_validator
 import json
+import yaml
 from pathlib import Path
 
 
@@ -121,10 +122,10 @@ class AgentConfigValidator:
     @staticmethod
     def validate_json_file(file_path: Union[str, Path]) -> AgentConfigUnion:
         """
-        Validate a JSON configuration file and return the parsed agent config.
+        Validate a YAML or JSON configuration file and return the parsed agent config.
         
         Args:
-            file_path: Path to the JSON configuration file
+            file_path: Path to the YAML or JSON configuration file
             
         Returns:
             AgentConfig: Validated agent configuration
@@ -133,6 +134,7 @@ class AgentConfigValidator:
             ValidationError: If the configuration is invalid
             FileNotFoundError: If the file doesn't exist
             json.JSONDecodeError: If the JSON is malformed
+            yaml.YAMLError: If the YAML is malformed
         """
         file_path = Path(file_path)
         
@@ -140,7 +142,10 @@ class AgentConfigValidator:
             raise FileNotFoundError(f"Configuration file not found: {file_path}")
         
         with open(file_path, 'r') as f:
-            config_data = json.load(f)
+            if str(file_path).endswith(('.yaml', '.yml')):
+                config_data = yaml.safe_load(f)
+            else:
+                config_data = json.load(f)
         
         return AgentConfigValidator.validate_dict(config_data)
     

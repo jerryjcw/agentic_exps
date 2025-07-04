@@ -1,5 +1,6 @@
 
 import json
+import yaml
 import importlib
 from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent, BaseAgent
 from google.adk.tools import FunctionTool, LongRunningFunctionTool
@@ -155,17 +156,20 @@ def save_agent_to_config(agent: BaseAgent, config_path: str):
 
 def create_agent_from_config(config_path: str) -> BaseAgent:
     """
-    Reads an agent configuration from a JSON file and creates an Agent instance.
+    Reads an agent configuration from a YAML or JSON file and creates an Agent instance.
     Handles Agent, SequentialAgent, ParallelAgent, LoopAgent, and custom agents.
 
     Args:
-        config_path (str): The path to the JSON configuration file.
+        config_path (str): The path to the YAML or JSON configuration file.
 
     Returns:
         BaseAgent: An instance of the created agent.
     """
     with open(config_path, 'r') as f:
-        config = json.load(f)
+        if str(config_path).endswith(('.yaml', '.yml')):
+            config = yaml.safe_load(f)
+        else:
+            config = json.load(f)
 
     return _create_agent_from_dict(config)
 

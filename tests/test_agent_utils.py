@@ -98,11 +98,13 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         steps = collect_agent_execution_steps(agent)
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].step_id, "step_001")
-        self.assertEqual(steps[0].agent_name, "MainAgent")
-        self.assertEqual(steps[0].agent_type, "TestAgent")
-        self.assertIn("Main Agent", steps[0].description)
-        self.assertEqual(steps[0].status, "pending")
+        self.assertIn("MainAgent", steps)
+        step = steps["MainAgent"]
+        self.assertEqual(step.step_id, "step_001")
+        self.assertEqual(step.agent_name, "MainAgent")
+        self.assertEqual(step.agent_type, "TestAgent")
+        self.assertIn("Main Agent", step.description)
+        self.assertEqual(step.status, "pending")
     
     def test_agent_with_single_sub_agent(self):
         """Test collection with agent containing one sub-agent."""
@@ -114,15 +116,19 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         self.assertEqual(len(steps), 2)
         
         # Check main agent
-        self.assertEqual(steps[0].step_id, "step_001")
-        self.assertEqual(steps[0].agent_name, "MainAgent")
-        self.assertIn("Main Agent", steps[0].description)
+        self.assertIn("MainAgent", steps)
+        main_step = steps["MainAgent"]
+        self.assertEqual(main_step.step_id, "step_001")
+        self.assertEqual(main_step.agent_name, "MainAgent")
+        self.assertIn("Main Agent", main_step.description)
         
         # Check sub-agent
-        self.assertEqual(steps[1].step_id, "step_002")
-        self.assertEqual(steps[1].agent_name, "SubAgent1")
-        self.assertIn("Sub-agent", steps[1].description)
-        self.assertIn("under MainAgent", steps[1].description)
+        self.assertIn("SubAgent1", steps)
+        sub_step = steps["SubAgent1"]
+        self.assertEqual(sub_step.step_id, "step_002")
+        self.assertEqual(sub_step.agent_name, "SubAgent1")
+        self.assertIn("Sub-agent", sub_step.description)
+        self.assertIn("under MainAgent", sub_step.description)
     
     def test_agent_with_multiple_sub_agents(self):
         """Test collection with agent containing multiple sub-agents."""
@@ -136,15 +142,17 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         self.assertEqual(len(steps), 4)
         
         # Verify all agents are collected
-        agent_names = [step.agent_name for step in steps]
+        agent_names = list(steps.keys())
         self.assertIn("MainAgent", agent_names)
         self.assertIn("SubAgent1", agent_names)
         self.assertIn("SubAgent2", agent_names)
         self.assertIn("SubAgent3", agent_names)
         
-        # Verify step IDs are sequential
-        step_ids = [step.step_id for step in steps]
-        self.assertEqual(step_ids, ["step_001", "step_002", "step_003", "step_004"])
+        # Verify step IDs are sequential (check specific steps)
+        self.assertEqual(steps["MainAgent"].step_id, "step_001")
+        self.assertEqual(steps["SubAgent1"].step_id, "step_002")
+        self.assertEqual(steps["SubAgent2"].step_id, "step_003")
+        self.assertEqual(steps["SubAgent3"].step_id, "step_004")
     
     def test_nested_agents_depth_2(self):
         """Test collection with nested agents (depth 2)."""
@@ -157,7 +165,7 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         self.assertEqual(len(steps), 3)
         
         # Check descriptions reflect nesting
-        descriptions = [step.description for step in steps]
+        descriptions = [step.description for step in steps.values()]
         self.assertTrue(any("Main Agent" in desc for desc in descriptions))
         self.assertTrue(any("Sub-agent" in desc and "under MainAgent" in desc for desc in descriptions))
         self.assertTrue(any("Nested (depth 2)" in desc and "under SubAgent" in desc for desc in descriptions))
@@ -174,7 +182,8 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         self.assertEqual(len(steps), 4)
         
         # Verify the deepest nested agent has correct description
-        deep_step = next(step for step in steps if step.agent_name == "DeepNested")
+        self.assertIn("DeepNested", steps)
+        deep_step = steps["DeepNested"]
         self.assertIn("Nested (depth 3)", deep_step.description)
         self.assertIn("under NestedAgent", deep_step.description)
     
@@ -185,7 +194,8 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         steps = collect_agent_execution_steps(agent, step_id_prefix="custom")
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].step_id, "custom_001")
+        self.assertIn("TestAgent", steps)
+        self.assertEqual(steps["TestAgent"].step_id, "custom_001")
     
     def test_agent_without_name_attribute(self):
         """Test collection with agent missing name attribute."""
@@ -198,7 +208,8 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         steps = collect_agent_execution_steps(agent)
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].agent_name, "Unknown Agent")
+        self.assertIn("Unknown Agent", steps)
+        self.assertEqual(steps["Unknown Agent"].agent_name, "Unknown Agent")
     
     def test_circular_reference_prevention(self):
         """Test that circular references are handled properly."""
@@ -213,7 +224,7 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         
         # Should only collect each agent once despite circular reference
         self.assertEqual(len(steps), 2)
-        agent_names = [step.agent_name for step in steps]
+        agent_names = list(steps.keys())
         self.assertEqual(set(agent_names), {"Agent1", "Agent2"})
     
     def test_complex_hierarchy(self):
@@ -234,13 +245,13 @@ class TestCollectAgentExecutionSteps(unittest.TestCase):
         self.assertEqual(len(steps), 6)
         
         # Verify all agents are present
-        agent_names = [step.agent_name for step in steps]
+        agent_names = list(steps.keys())
         expected_names = {"Root", "Branch1", "Branch2", "Leaf1", "Leaf2", "Leaf3"}
         self.assertEqual(set(agent_names), expected_names)
         
-        # Verify Root is first
-        self.assertEqual(steps[0].agent_name, "Root")
-        self.assertIn("Main Agent", steps[0].description)
+        # Verify Root has main agent description
+        self.assertIn("Root", steps)
+        self.assertIn("Main Agent", steps["Root"].description)
 
 
 class TestDisplayExecutionStepsSummary(unittest.TestCase):
@@ -270,7 +281,7 @@ class TestDisplayExecutionStepsSummary(unittest.TestCase):
             status="pending"
         )
         
-        display_execution_steps_summary([step])
+        display_execution_steps_summary({"TestAgent": step})
         
         # Verify key information is displayed
         print_calls = [str(call) for call in mock_print.call_args_list]
@@ -286,22 +297,22 @@ class TestDisplayExecutionStepsSummary(unittest.TestCase):
     @patch('builtins.print')
     def test_display_multiple_steps(self, mock_print):
         """Test display with multiple execution steps."""
-        steps = [
-            ExecutionStep(
+        steps = {
+            "Agent1": ExecutionStep(
                 step_id="step_001",
                 agent_name="Agent1",
                 agent_type="Type1",
                 description="Description 1",
                 status="completed"
             ),
-            ExecutionStep(
+            "Agent2": ExecutionStep(
                 step_id="step_002",
                 agent_name="Agent2",
                 agent_type="Type2",
                 description="Description 2",
                 status="running"
             )
-        ]
+        }
         
         display_execution_steps_summary(steps)
         
@@ -350,7 +361,8 @@ class TestEdgeCases(unittest.TestCase):
         steps = collect_agent_execution_steps(agent)
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].agent_name, "TestAgent")
+        self.assertIn("TestAgent", steps)
+        self.assertEqual(steps["TestAgent"].agent_name, "TestAgent")
     
     def test_agent_with_none_sub_agents(self):
         """Test agent with None sub_agents."""
@@ -359,7 +371,8 @@ class TestEdgeCases(unittest.TestCase):
         steps = collect_agent_execution_steps(agent)
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].agent_name, "TestAgent")
+        self.assertIn("TestAgent", steps)
+        self.assertEqual(steps["TestAgent"].agent_name, "TestAgent")
     
     def test_agent_without_sub_agents_attribute(self):
         """Test agent without sub_agents attribute."""
@@ -372,7 +385,8 @@ class TestEdgeCases(unittest.TestCase):
         steps = collect_agent_execution_steps(agent)
         
         self.assertEqual(len(steps), 1)
-        self.assertEqual(steps[0].agent_name, "MinimalAgent")
+        self.assertIn("MinimalAgent", steps)
+        self.assertEqual(steps["MinimalAgent"].agent_name, "MinimalAgent")
 
     def test_e2e(self):
         # find out work directory
@@ -383,8 +397,8 @@ class TestEdgeCases(unittest.TestCase):
         work_dir = os.path.dirname(os.path.abspath(__file__))
         # For each configuration file in {work_dir}/../config/agent/json_examples
         # 1. Load the configuration file.
-        config_files = Path(work_dir).parent / "config/agent/json_examples"
-        for config_file in config_files.glob("*.json"):
+        config_files = Path(work_dir).parent / "config/agent/yaml_examples"
+        for config_file in config_files.glob("*.yaml"):
             # 2. Create the agent using the configuration and create_agent_from_config() in agent_io/agent_io.py
             agent = create_agent_from_config(config_file)
 
@@ -392,9 +406,21 @@ class TestEdgeCases(unittest.TestCase):
             steps = collect_agent_execution_steps(agent)
 
             # 4. Read the file and compute the number of Agents in the config.
+            import yaml
             with open(config_file, 'r') as f:
-                config_data = f.read()
-                num_agents = config_data.count('"name": ')
+                config_data = yaml.safe_load(f)
+            
+            # Count agents recursively in YAML structure
+            def count_agents(obj):
+                if isinstance(obj, dict):
+                    count = 1 if 'name' in obj else 0
+                    if 'sub_agents' in obj:
+                        for sub_agent in obj['sub_agents']:
+                            count += count_agents(sub_agent)
+                    return count
+                return 0
+            
+            num_agents = count_agents(config_data)
             assert len(steps) == num_agents, f"Expected {num_agents} steps, but got {len(steps)} for {config_file}"
 
 

@@ -61,7 +61,7 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
         
         # Verify all parameters are preserved
         self.assertEqual(original_agent.name, loaded_agent.name)
-        self.assertEqual(original_agent.model, loaded_agent.model)
+        self.assertEqual(original_agent.model, loaded_agent.model.model)
         self.assertEqual(original_agent.instruction, loaded_agent.instruction)
         self.assertEqual(getattr(original_agent, 'description', None), getattr(loaded_agent, 'description', None))
         self.assertEqual(getattr(original_agent, 'output_key', None), getattr(loaded_agent, 'output_key', None))
@@ -284,7 +284,7 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
         inner = nested_loop.sub_agents[0]
         self.assertIsInstance(inner, Agent)
         self.assertEqual(inner.name, "InnerAgent")
-        self.assertEqual(inner.model, "inner-model")
+        self.assertEqual(inner.model.model, "inner-model")
         self.assertEqual(getattr(inner, 'output_key', None), "inner_output")
         self.assertEqual(len(inner.tools), 1)
 
