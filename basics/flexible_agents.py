@@ -11,10 +11,12 @@ import sys
 import json
 import asyncio
 import datetime
-import threading
-import time
+import logging
 from pathlib import Path
 from typing import Dict
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -22,9 +24,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from agent_io.agent_io import create_agent_from_config
 from data_model import validate_configuration_file
 from utils import analyze_agent_structure, display_agent_readiness
-from utils.agent_utils import collect_agent_execution_steps, display_execution_steps_summary
+from utils.agent_utils import collect_agent_execution_steps, display_execution_steps_summary, ExecutionStep, maintain_execution_status, report_finished_steps
 
 
+emojis = ["👤", "🤖", "💡", "🔍", "⚙️", "📊", "🛠️", "📈", "📝", "✅", "🌟", 
+          "🚀", "🎯", "🧩", "🔧", "📅", "💻", "🖥️", "📱", "🖨️", "🗂️", "🔒", 
+          "🔑", "🧰", "🧪", "🧬", "🧫", "🧫", "🧪", "🧬"]
 
 
 def create_agent_from_config_file(config_path):
@@ -39,35 +44,35 @@ def create_agent_from_config_file(config_path):
     """
     config_path = Path(config_path)
     
-    print("=" * 60)
-    print(f"Agent Initialization: {config_path.name}")
-    print("=" * 60)
-    
+    logging.info("=" * 60)
+    logging.info(f"Agent Initialization: {config_path.name}")
+    logging.info("=" * 60)
+
     # Validate configuration
     print("1. Validating configuration...")
     try:
         _, warnings = validate_configuration_file(config_path)
-        print(f"   ✓ Configuration is valid")
+        logger.info(f"   ✓ Configuration is valid")
         if warnings:
-            print(f"   ⚠ {len(warnings)} warnings found:")
+            logger.warning(f"   ⚠ {len(warnings)} warnings found:")
             for warning in warnings:
-                print(f"     - {warning}")
+                logger.warning(f"     - {warning}")
         else:
-            print("   ✓ No warnings")
+            logger.info("   ✓ No warnings")
     except Exception as e:
-        print(f"   ✗ Configuration validation failed: {e}")
+        logging.error(f"   ✗ Configuration validation failed: {e}")
         return None
     
     # Create agent
-    print("\n2. Creating agent from configuration...")
+    logging.info("\n2. Creating agent from configuration...")
     try:
         agent = create_agent_from_config(str(config_path))
-        print(f"   ✓ Agent '{agent.name}' created successfully")
-        print(f"   ✓ Agent type: {agent.__class__.__name__}")
+        logging.info(f"   ✓ Agent '{agent.name}' created successfully")
+        logging.info(f"   ✓ Agent type: {agent.__class__.__name__}")
         if hasattr(agent, 'sub_agents'):
-            print(f"   ✓ Number of sub-agents: {len(agent.sub_agents)}")
+            logging.info(f"   ✓ Number of sub-agents: {len(agent.sub_agents)}")
     except Exception as e:
-        print(f"   ✗ Agent creation failed: {e}")
+        logging.error(f"   ✗ Agent creation failed: {e}")
         return None
     
     # Analyze structure and display readiness
@@ -77,7 +82,7 @@ def create_agent_from_config_file(config_path):
     return agent
 
 
-def _save_analysis_results(input_path, agent, event_count, full_response, code_content):
+def _save_analysis_results(input_path, agent, event_count, final_responses: Dict[str, str], code_content: str):
     """Helper function to save analysis results to files."""
     output_dir = Path(__file__).parent.parent / "output"
     output_dir.mkdir(exist_ok=True)
@@ -94,9 +99,13 @@ def _save_analysis_results(input_path, agent, event_count, full_response, code_c
         f.write(f"Input File: {input_path}\n")
         f.write(f"Agent: {agent.name}\n")
         f.write(f"Events Generated: {event_count}\n\n")
-        f.write("Analysis Results:\n")
-        f.write("-" * 40 + "\n\n")
-        f.write(full_response)
+        # Include final responses.
+        if final_responses:
+            f.write("\n\nFinal Responses:\n")
+            f.write("-" * 40 + "\n")
+            for author, response in final_responses.items():
+                f.write(f"{author}:\n")
+                f.write(response + "\n\n")
     
     # Save JSON report
     json_output = {
@@ -108,7 +117,7 @@ def _save_analysis_results(input_path, agent, event_count, full_response, code_c
             "file_size": len(code_content),
             "lines_of_code": len(code_content.splitlines())
         },
-        "analysis_results": full_response,
+        "analysis_results": final_responses,
         "code_analyzed": code_content
     }
     
@@ -116,13 +125,67 @@ def _save_analysis_results(input_path, agent, event_count, full_response, code_c
     with open(json_file, 'w') as f:
         json.dump(json_output, f, indent=2)
     
-    print(f"📁 Output saved to: {output_file}")
-    print(f"📄 JSON output saved to: {json_file}")
-    
+    logging.info(f"📁 Output saved to: {output_file}")
+    logging.info(f"📄 JSON output saved to: {json_file}")
+
     return str(output_file), str(json_file)
 
 
-async def run_agent_with_input(agent, input_file_path, execution_steps):
+async def run_agent(agent, user_query):
+    # Import all required modules at once
+    from google.adk.runners import Runner
+    from google.adk.sessions import InMemorySessionService
+    from google.adk.runners import types
+    from dotenv import load_dotenv
+    
+    # Load environment variables
+    load_dotenv()
+
+    try:
+        # Set up session and runner
+        session_service = InMemorySessionService()
+        runner = Runner(
+            app_name="CodeImprovementAnalysis",
+            agent=agent,
+            session_service=session_service
+        )
+        
+        # Create session
+        session = await session_service.create_session(
+            user_id="code_analyzer",
+            session_id="analysis_session",
+            app_name="CodeImprovementAnalysis"
+        )
+
+        message = types.Content(role="user", parts=[{"text": user_query}])
+        
+        print(f"\n🤖 Starting code improvement analysis...")
+        print("This may take several minutes as the workflow processes through all agents...")
+        print("-" * 60)
+        
+        # Run agent and collect responses
+        response_generator = runner.run(
+            user_id="code_analyzer",
+            session_id="analysis_session", 
+            new_message=message
+        )
+        return response_generator, session
+    except Exception as e:
+        print(f"\nError during execution: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def log_event_details(event, session):
+    for field in ["author", "id", "invocation_id"]:
+        logging.debug(f"📝 {field} = {getattr(event, field, 'N/A')}")
+    if hasattr(event, 'actions'):
+        logging.info(f"📝 Actions: transfer_to_agent = {event.actions.transfer_to_agent}, escalate = {event.actions.escalate}")
+    logging.info(f"Session state: {session.state}")
+
+
+async def run_job(agent, input_file_path: str, execution_steps: Dict[str, ExecutionStep]):
     """
     Run the agent with actual code input for analysis.
     
@@ -145,43 +208,27 @@ async def run_agent_with_input(agent, input_file_path, execution_steps):
     # Read and validate input file
     input_path = Path(input_file_path)
     if not input_path.exists():
-        print(f"Input file not found: {input_path}")
+        logging.error(f"Input file not found: {input_path}")
         return None
     
     with open(input_path, 'r') as f:
         code_content = f.read()
     
     # Display input information
-    print("\n" + "=" * 60)
-    print(f"Running Agent with Input: {input_path.name}")
-    print("=" * 60)
-    print(f"Input file: {input_path}")
-    print(f"File size: {len(code_content)} characters")
-    print(f"Lines of code: {len(code_content.splitlines())}")
-    print(f"\nCode preview (first 500 characters):")
-    print("-" * 40)
-    print(code_content[:500] + ("..." if len(code_content) > 500 else ""))
-    print("-" * 40)
-    print(f"\nExecuting agent workflow...")
+    logging.info("\n" + "=" * 60)
+    logging.info(f"Running Agent with Input: {input_path.name}")
+    logging.info("=" * 60)
+    logging.info(f"Input file: {input_path}")
+    logging.info(f"File size: {len(code_content)} characters")
+    logging.info(f"Lines of code: {len(code_content.splitlines())}")
+    logging.info(f"\nCode preview (first 500 characters):")
+    logging.info("-" * 40)
+    logging.info(code_content[:500] + ("..." if len(code_content) > 500 else ""))
+    logging.info("-" * 40)
+    logging.info(f"\nExecuting agent workflow...")
 
-    try:
-        # Set up session and runner
-        session_service = InMemorySessionService()
-        runner = Runner(
-            app_name="CodeImprovementAnalysis",
-            agent=agent,
-            session_service=session_service
-        )
-        
-        # Create session
-        session = await session_service.create_session(
-            user_id="code_analyzer",
-            session_id="analysis_session",
-            app_name="CodeImprovementAnalysis"
-        )
-        
-        # Create analysis request
-        user_query = f"""Please analyze the following Python code for improvements:
+    # Create analysis request
+    user_query = f"""Please analyze the following Python code for improvements:
 
 File: {input_path.name}
 Language: Python
@@ -200,57 +247,61 @@ Please provide a comprehensive analysis focusing on:
 
 Provide specific recommendations with examples where possible."""
 
-        message = types.Content(role="user", parts=[{"text": user_query}])
-        
-        print(f"\n🤖 Starting code improvement analysis...")
-        print("This may take several minutes as the workflow processes through all agents...")
-        print("-" * 60)
-        
-        # Run agent and collect responses
-        response_generator = runner.run(
-            user_id="code_analyzer",
-            session_id="analysis_session", 
-            new_message=message
-        )
-        
-        full_response = ""
+    try:
+        response_generator, session = await run_agent(agent, user_query)
+        final_responses = {}
         event_count = 0
         
         for event in response_generator:
             event_count += 1
-            for field in ["author", "id", "invocation_id"]:
-                print(f"📌 {field} = {getattr(event, field, 'N/A')}")
-            if hasattr(event, 'actions'):
-                print(f"📌 Actions: transfer_to_agent = {event.actions.transfer_to_agent}, escalate = {event.actions.escalate}")
-            print(f"Session state: {session.state}")
+
+            # Make the following paragraph a function.
+            log_event_details(event, session)
+
+
             author, error_code = getattr(event, 'author', 'unknown'), getattr(event, 'error_code', None)
-            if author in execution_steps and not error_code:
-                print(f"📌 Agent: {execution_steps[author].agent_name} ({execution_steps[author].agent_type}) finished.")
-                execution_steps[author].events_generated += 1
-                execution_steps[author].end_time = datetime.datetime.now().isoformat()
+            if author in execution_steps:
+                step = execution_steps[author]
+                if step.status == "pending":
+                    step.status = "running"
+                    step.start_time = datetime.datetime.now().isoformat()
+
+                if not error_code:
+                    logging.info(f"✅ Agent: {step.agent_name} ({step.agent_type}) finished.")
+                    step.status = "completed"
+                    step.events_generated += 1
+                    step.end_time = datetime.datetime.now().isoformat()
+                    maintain_execution_status(execution_steps=execution_steps, agent_name=author)
+                else:
+                    logging.error(f"❌ Agent: {step.agent_name} ({step.agent_type}) failed.")
+                    step.status = "failed"
+                    step.end_time = datetime.datetime.now().isoformat()
+            
+            report_finished_steps(execution_steps)
 
             # Process event content
             if hasattr(event, 'content') and event.content:
-                if hasattr(event.content, 'parts') and event.content.parts:
-                    for part in event.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            content_text = part.text
-                            full_response += content_text
-                            
-                            # Show progress
-                            preview = (content_text[:100].replace('\n', ' ') + "..." 
-                                     if len(content_text) > 100 else content_text)
-                            print(f"📨 Event {event_count}: {type(event).__name__}")
-                            print(f"   📝 Content: {preview}")
+                # If the event is the final response, keep it.
+                if event.is_final_response():
+                    final_response = f"{event.author} %% ({datetime.datetime.now().isoformat()}): "
+                    if hasattr(event, "content") and event.content and hasattr(event.content, "parts"):
+                        for part in event.content.parts:
+                            if hasattr(part, "text") and part.text:
+                                final_response += part.text
+                    logging.info(f"📨 Final response received with {len(final_response)} characters")
+                    preview = (final_response[:256].replace('\n', ' ') + "..." 
+                             if len(final_response) > 256 else final_response)
+                    logging.info(f"   📝 Final response preview: {preview}")
+                    final_responses[event.author] = final_response
             else:
                 # Even events without content are valuable for tracking
-                print(f"📨 Event {event_count}: {type(event).__name__}")
-        
-        print(f"\n✅ Analysis completed! Generated {event_count} events")
-        
+                logging.debug(f"📨 Event {event_count}: {type(event).__name__} has no content.")
+
+        logging.info(f"\n✅ Analysis completed! Generated {event_count} events")
+
         # Save results
         output_file, json_file = _save_analysis_results(
-            input_path, agent, event_count, full_response, code_content
+            input_path, agent, event_count, final_responses, code_content
         )
         
         return {
@@ -258,8 +309,8 @@ Provide specific recommendations with examples where possible."""
             "output_file": output_file,
             "json_file": json_file,
             "events_generated": event_count,
-            "response_length": len(full_response),
-            "analysis_results": full_response
+            "response_length": sum(len(resp) for resp in final_responses.values()),
+            "analysis_results": final_responses,
         }
         
     except Exception as e:
@@ -271,69 +322,65 @@ Provide specific recommendations with examples where possible."""
 
 def _display_results_summary(results):
     """Helper function to display execution results summary."""
-    print("\n" + "=" * 60)
-    print("Execution Results Summary")
-    print("=" * 60)
-    
+    logging.info("\n" + "=" * 60)
+    logging.info("Execution Results Summary")
+    logging.info("=" * 60)
+
     if isinstance(results, dict):
-        print(f"Status: {results.get('status', 'unknown')}")
-        print(f"Events Generated: {results.get('events_generated', 0)}")
-        print(f"Response Length: {results.get('response_length', 0)} characters")
+        logging.info(f"Status: {results.get('status', 'unknown')}")
+        logging.info(f"Events Generated: {results.get('events_generated', 0)}")
+        logging.info(f"Response Length: {results.get('response_length', 0)} characters")
         if results.get('output_file'):
-            print(f"Text Output: {results['output_file']}")
+            logging.info(f"Text Output: {results['output_file']}")
         if results.get('json_file'):
-            print(f"JSON Output: {results['json_file']}")
+            logging.info(f"JSON Output: {results['json_file']}")
     else:
-        print("No results returned from agent execution")
+        logging.warning("No results returned from agent execution")
 
 
 async def main_async():
     """Main async function that creates and runs the code improvement agent."""
-    print("Code Improvement Agent - Live Execution Demo")
-    print("=" * 60)
-    
+    logging.info("Code Improvement Agent - Live Execution Demo")
+    logging.info("=" * 60)
+
     try:
         # Create agent
-        config_path = Path(__file__).parent.parent / "config" / "json_examples" / "code_improvement_workflow.json"
-        print("Creating Code Improvement Agent...")
+        config_path = Path(__file__).parent.parent / "config" / "agent" / "json_examples" / "simple_code_improvement.json"
+        logging.info("Creating Code Improvement Agent...")
         agent = create_agent_from_config_file(config_path)
         
         if agent is None:
-            print("Failed to create agent. Exiting.")
+            logging.error("Failed to create agent. Exiting.")
             return 1
         
         # Collect agent execution steps
-        print(f"\nCollecting agent execution steps...")
+        logging.info(f"\nCollecting agent execution steps...")
         execution_steps = collect_agent_execution_steps(agent)
-        print(f"######## Total execution steps collected: {len(execution_steps)}")
+        logging.info(f"💡 Total execution steps collected: {len(execution_steps)}")
         display_execution_steps_summary(execution_steps)
         
         # Run agent analysis
         input_file = Path(__file__).parent.parent / "agent_io" / "agent_io.py"
-        print(f"\nExecuting agent analysis on: {input_file}")
-        results = await run_agent_with_input(agent, input_file, execution_steps)
+        logging.info(f"\n💡 Executing agent analysis on: {input_file}")
+        results = await run_job(agent, input_file, execution_steps)
         
         # Display results
         if results:
             _display_results_summary(results)
+            report_finished_steps(execution_steps)
         
-        print("\n" + "=" * 60)
-        print("Agent execution completed successfully!")
-        print("=" * 60)
-        
+        logger.info("\n" + "=" * 60)
+        logger.info("Agent execution completed successfully!")
+        logger.info("=" * 60)
+
         return 0
         
     except Exception as e:
-        print(f"\nError: {e}")
+        logger.error(f"\nError: {e}")
         import traceback
         traceback.print_exc()
         return 1
 
 
-def main():
-    """Synchronous main function that runs the async workflow."""
-    return asyncio.run(main_async())
-
-
 if __name__ == "__main__":
-    exit_code = main()
+    asyncio.run(main_async())

@@ -10,7 +10,11 @@ execution steps.
 import datetime
 from dataclasses import dataclass, field
 from typing import Optional, List
+import logging
+from typing import Dict
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ExecutionStep:
@@ -25,6 +29,7 @@ class ExecutionStep:
     events_generated: int = 0
     output_preview: str = ""
     sub_steps: List['ExecutionStep'] = field(default_factory=list)  # Nested steps if any
+    parent_step: Optional['ExecutionStep'] = None  # Reference to parent step if nested
 
 
 def analyze_agent_structure(agent):
@@ -152,6 +157,13 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
         agent_type = agent_obj.__class__.__name__
         description = f"Execute {agent_name} ({agent_type}){description_suffix}"
         
+        # Check if agent is of the LoopAgent type
+        if agent_type == "LoopAgent":
+            # Get the max_iterations if available
+            max_iterations = getattr(agent_obj, 'max_iterations', 1)
+        else:
+            max_iterations = 0
+
         return ExecutionStep(
             step_id=step_id,
             agent_name=agent_name,
@@ -160,7 +172,7 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
             status="pending",
             start_time=None,
             end_time=None,
-            events_generated=0,
+            events_generated=max_iterations,
             output_preview=""
         )
     
@@ -200,11 +212,67 @@ def collect_agent_execution_steps(agent, step_id_prefix="step"):
                 name = getattr(sub_agent, 'name', 'Unknown Agent')
                 if name in execution_steps:
                     execution_steps[current_agent_name].sub_steps.append(execution_steps[name])
+                    execution_steps[name].parent_step = execution_steps[current_agent_name]
     
     # Start DFS from the main agent
     _dfs_collect_agents(agent)
     
     return execution_steps
+
+
+def maintain_execution_status(execution_steps: Dict[str, ExecutionStep], agent_name: str) -> None:
+    """
+    Maintains the execution status of the agent and its parent steps.
+    Args:
+        execution_steps (dict): A dictionary of ExecutionStep objects.
+        agent_name (str): The name of the agent whose status is being maintained.
+    
+    """
+    step = execution_steps[agent_name]
+    while step.parent_step:
+        parent = step.parent_step
+        if parent.agent_type != "LoopAgent":
+            for sub_step in parent.sub_steps:
+                if sub_step.status != "completed":
+                    break
+            else:
+                logging.info(f"🚀 Step {parent.agent_name} finished because all substeps are finished.")
+                parent.status = "completed"
+                parent.end_time = datetime.datetime.now().isoformat()
+        else:
+            # We check the LoopAgent's sub-steps and only mark it as finished 
+            # if all sub-steps 'events_generated' equals the 'events_generated' 
+            # recorded in the loop agent step.
+            if all(sub_step.events_generated == parent.events_generated for sub_step in parent.sub_steps):
+                logging.info(f"🚀 LoopAgent {parent.agent_name} sub-steps are all finished.")
+                parent.status = "completed"
+                parent.end_time = datetime.datetime.now().isoformat()
+        step = parent
+
+
+def report_finished_steps(execution_steps):
+    """
+    Reports which steps in the execution_steps dictionary are finished.
+    Args:
+        execution_steps (dict): A dictionary of ExecutionStep objects.
+    """
+    logging.info("\n" + "=" * 60)
+    logging.info("Finished Execution Steps Report")
+    logging.info("=" * 60)
+
+    finished_steps = []
+    for step in execution_steps.values():
+        if step.status == "completed":
+            finished_steps.append(step)
+
+    if not finished_steps:
+        logging.warning("No steps were finished.")
+        return
+
+    logging.info(f"Total Finished Steps: {len(finished_steps)}\n")
+    for step in finished_steps:
+        logging.info(f"  - ✅ {step.agent_name} ({step.agent_type})")
+
 
 
 def display_execution_steps_summary(execution_steps):

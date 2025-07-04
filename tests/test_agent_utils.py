@@ -381,9 +381,9 @@ class TestEdgeCases(unittest.TestCase):
         from utils.agent_utils import collect_agent_execution_steps 
 
         work_dir = os.path.dirname(os.path.abspath(__file__))
-        # For each configuration file in {work_dir}/../config/json_examples
+        # For each configuration file in {work_dir}/../config/agent/json_examples
         # 1. Load the configuration file.
-        config_files = Path(work_dir).parent / "config/json_examples"
+        config_files = Path(work_dir).parent / "config/agent/json_examples"
         for config_file in config_files.glob("*.json"):
             # 2. Create the agent using the configuration and create_agent_from_config() in agent_io/agent_io.py
             agent = create_agent_from_config(config_file)
