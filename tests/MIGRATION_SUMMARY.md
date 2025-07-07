@@ -7,7 +7,7 @@ Successfully migrated all tests from scattered individual test files to a unifie
 ## Migration Details
 
 ### Original Test Files (Removed)
-- `basics/test_model_comparison.py` → Migrated to `tests/test_model_comparison.py`
+- `core/test_model_comparison.py` → Migrated to `tests/test_model_comparison.py`
 - `wrapper/langchain_wrapper_test.py` → Migrated to `tests/test_langchain_wrapper.py`
 - `wrapper/langchain_integration_test.py` → Migrated to `tests/test_integration.py`
 - `wrapper/test_maybe_append_user_content.py` → Migrated to `tests/test_maybe_append_user_content.py`

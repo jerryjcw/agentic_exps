@@ -11,8 +11,8 @@ import sys
 # Add project paths for test imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 wrapper_dir = os.path.join(project_root, 'wrapper')
-basics_dir = os.path.join(project_root, 'basics')
+core_dir = os.path.join(project_root, 'core')
 
-for path in [project_root, wrapper_dir, basics_dir]:
+for path in [project_root, wrapper_dir, core_dir]:
     if path not in sys.path:
         sys.path.insert(0, path)

@@ -18,7 +18,7 @@ from urllib.parse import quote
 # import .env file
 from dotenv import load_dotenv
 
-# load .env file under basics 
+# load .env file under core 
 load_dotenv()
 
 # Import Google search function for news search

@@ -15,8 +15,8 @@ from dotenv import load_dotenv
 # Add project paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 wrapper_dir = os.path.join(project_root, 'wrapper')
-basics_dir = os.path.join(project_root, 'basics')
-sys.path.extend([wrapper_dir, basics_dir, project_root])
+core_dir = os.path.join(project_root, 'core')
+sys.path.extend([wrapper_dir, core_dir, project_root])
 
 try:
     from google.adk.agents import Agent

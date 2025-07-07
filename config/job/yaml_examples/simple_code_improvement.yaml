@@ -13,10 +13,14 @@ agent_config:
   config_type: "file"
 
 input_config:
-  input_file_path: "agent_io/agent_io.py"
-  input_type: "file"
-  language: "Python"
-  framework: "Google ADK"
+  # Support for multiple input files
+  input_files:
+    - input_path: "agent_io/agent_io.py"
+      input_type: "text"
+    - input_path: "core/flexible_agents.py"
+      input_type: "text"
+  
+  # Global input settings
   preview_length: 500
 
 analysis_config:

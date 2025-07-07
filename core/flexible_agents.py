@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Agent Creator - General utility for loading and instantiating agents from JSON configurations.
+Flexible Agent Framework - General utility for loading and instantiating agents from configurations.
 
-This script provides a general framework for creating Google ADK agents from JSON
-configuration files, with the code improvement workflow as a demonstration example.
+This script provides a general framework for creating Google ADK agents from configuration
+files, supporting flexible workflows with multiple input files.
 """
 
 import os
@@ -46,8 +46,56 @@ def load_template_config(template_config_path):
             return json.load(f)
 
 
-def synthesize_user_query_jinja2(template_config, analysis_config, input_config, code_content, file_name):
-    """Synthesize user query using Jinja2 template."""
+def read_input_file(file_path, input_type=None, **metadata):
+    """
+    Read a single input file and return its content and metadata.
+    
+    Args:
+        file_path (str or Path): Path to the input file
+        input_type (str): Explicit input type (overrides file extension)
+        **metadata: Additional metadata for the file
+        
+    Returns:
+        dict: Dictionary containing file_name, file_type, file_content, and metadata
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"Input file not found: {file_path}")
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Determine file type
+    if input_type:
+        file_type = input_type
+    else:
+        file_type = file_path.suffix.lstrip('.') if file_path.suffix else ''
+    
+    result = {
+        'file_name': file_path.name,
+        'file_type': file_type,
+        'file_content': content,
+        'file_size': len(content),
+        'full_path': str(file_path)
+    }
+    
+    # Add any additional metadata
+    result.update(metadata)
+    
+    return result
+
+
+def synthesize_user_query_jinja2(template_config, file_names, file_types, file_contents):
+    """
+    Synthesize user query using Jinja2 template.
+    
+    Args:
+        template_config: Template configuration dictionary
+        file_names: List of file names (strings)
+        file_types: List of file types (strings)  
+        file_contents: List of file contents (strings)
+    """
     try:
         from jinja2 import Template
     except ImportError:
@@ -56,28 +104,28 @@ def synthesize_user_query_jinja2(template_config, analysis_config, input_config,
     
     # Get template content
     template_content = template_config.get('template_content', '')
-    language_mapping = template_config.get('language_mapping', {})
-    
-    # Prepare template variables
-    language = input_config.get('language', 'Python')
-    framework = input_config.get('framework', 'Generic')
-    language_code_block = language_mapping.get(language, language.lower())
-    analysis_focus = analysis_config.get('analysis_focus', [])
+    variable_mapping = template_config.get('template_variables', {})
     
     # Template variables
     template_vars = {
-        'language': language,
-        'file_name': file_name,
-        'framework': framework,
-        'language_code_block': language_code_block,
-        'code_content': code_content,
-        'analysis_focus': analysis_focus
+        k: v['default'] for k, v in variable_mapping.items()
     }
-    
+
+    logging.debug(f"Using template variables: {template_vars}")
+
+    # Update template variables with file data arrays
+    template_vars.update({
+        'file_name': file_names,
+        'file_type': file_types, 
+        'file_content': file_contents
+    })
+
     # Render template
     template = Template(template_content)
     rendered_query = template.render(**template_vars)
-    
+
+    logging.debug(f"Rendered query length: {len(rendered_query)} characters")
+
     return rendered_query
 
 
@@ -91,42 +139,30 @@ def create_agent_from_config_file(config_path):
     Complete workflow to create an agent from a configuration file.
     
     Args:
-        config_path (str or Path): Path to the JSON configuration file
+        config_path (str or Path): Path to the configuration file
         
     Returns:
         The instantiated agent or None if creation failed
     """
     config_path = Path(config_path)
     
-    logging.info("=" * 60)
-    logging.info(f"Agent Initialization: {config_path.name}")
-    logging.info("=" * 60)
+    logging.info(f"Initializing agent: {config_path.name}")
 
     # Validate configuration
-    print("1. Validating configuration...")
     try:
         _, warnings = validate_configuration_file(config_path)
-        logger.info(f"   ✓ Configuration is valid")
         if warnings:
-            logger.warning(f"   ⚠ {len(warnings)} warnings found:")
-            for warning in warnings:
-                logger.warning(f"     - {warning}")
-        else:
-            logger.info("   ✓ No warnings")
+            logging.warning(f"Configuration has {len(warnings)} warnings")
     except Exception as e:
-        logging.error(f"   ✗ Configuration validation failed: {e}")
+        logging.error(f"Configuration validation failed: {e}")
         return None
     
     # Create agent
-    logging.info("\n2. Creating agent from configuration...")
     try:
         agent = create_agent_from_config(str(config_path))
-        logging.info(f"   ✓ Agent '{agent.name}' created successfully")
-        logging.info(f"   ✓ Agent type: {agent.__class__.__name__}")
-        if hasattr(agent, 'sub_agents'):
-            logging.info(f"   ✓ Number of sub-agents: {len(agent.sub_agents)}")
+        logging.info(f"Agent '{agent.name}' created successfully")
     except Exception as e:
-        logging.error(f"   ✗ Agent creation failed: {e}")
+        logging.error(f"Agent creation failed: {e}")
         return None
     
     # Analyze structure and display readiness
@@ -136,8 +172,8 @@ def create_agent_from_config_file(config_path):
     return agent
 
 
-def _save_analysis_results(input_path, agent, event_count, final_responses: Dict[str, str], code_content: str, job_config: dict):
-    """Helper function to save analysis results to files."""
+def _save_results(input_files_data, agent, event_count, final_responses: Dict[str, str], job_config: dict):
+    """Helper function to save agent execution results to files."""
     output_config = job_config.get('output_config', {})
     output_dir = Path(__file__).parent.parent / output_config.get('output_directory', 'output')
     output_dir.mkdir(exist_ok=True)
@@ -146,17 +182,26 @@ def _save_analysis_results(input_path, agent, event_count, final_responses: Dict
     timestamp = datetime.datetime.now().strftime(timestamp_format)
     current_time = datetime.datetime.now()
     
+    # Generate filename based on input files
+    if len(input_files_data) == 1:
+        input_filename = Path(input_files_data[0]['full_path']).stem
+    else:
+        input_filename = f"multi_file_execution_{len(input_files_data)}_files"
+    
     # Save text report
-    file_naming = output_config.get('file_naming', 'code_analysis_{input_filename}_{timestamp}')
-    output_file = output_dir / f"{file_naming.format(input_filename=input_path.stem, timestamp=timestamp)}.txt"
+    file_naming = output_config.get('file_naming', 'agent_execution_{input_filename}_{timestamp}')
+    output_file = output_dir / f"{file_naming.format(input_filename=input_filename, timestamp=timestamp)}.txt"
     with open(output_file, 'w') as f:
-        f.write(f"Code Improvement Analysis Report\n")
-        f.write(f"================================\n\n")
-        f.write(f"Analysis Date: {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Input File: {input_path}\n")
+        f.write(f"Agent Execution Report\n")
+        f.write(f"=====================\n\n")
+        f.write(f"Execution Date: {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Input Files ({len(input_files_data)}):\n")
+        for i, file_data in enumerate(input_files_data, 1):
+            f.write(f"  {i}. {file_data['full_path']} ({file_data['file_size']} chars)\n")
         f.write(f"Agent: {agent.name}\n")
         f.write(f"Events Generated: {event_count}\n\n")
-        # Include final responses.
+        
+        # Include final responses
         if final_responses:
             f.write("\n\nFinal Responses:\n")
             f.write("-" * 40 + "\n")
@@ -167,18 +212,25 @@ def _save_analysis_results(input_path, agent, event_count, final_responses: Dict
     # Save JSON report
     json_output = {
         "metadata": {
-            "analysis_date": current_time.isoformat(),
-            "input_file": str(input_path),
+            "execution_date": current_time.isoformat(),
+            "input_files": [
+                {
+                    "file_path": file_data['full_path'],
+                    "file_name": file_data['file_name'],
+                    "file_type": file_data['file_type'],
+                    "file_size": file_data['file_size'],
+                }
+                for file_data in input_files_data
+            ],
             "agent_name": agent.name,
             "events_generated": event_count,
-            "file_size": len(code_content),
-            "lines_of_code": len(code_content.splitlines())
+            "total_file_size": sum(f['file_size'] for f in input_files_data),
         },
-        "analysis_results": final_responses,
-        "code_analyzed": code_content
+        "execution_results": final_responses,
+        "content_analyzed": [file_data['file_content'] for file_data in input_files_data]
     }
     
-    json_file = output_dir / f"{file_naming.format(input_filename=input_path.stem, timestamp=timestamp)}.json"
+    json_file = output_dir / f"{file_naming.format(input_filename=input_filename, timestamp=timestamp)}.json"
     with open(json_file, 'w') as f:
         json.dump(json_output, f, indent=2)
     
@@ -245,16 +297,18 @@ def log_event_details(event, session):
     logging.info(f"Session state: {session.state}")
 
 
-async def run_job(agent, input_file_path: str, execution_steps: Dict[str, ExecutionStep], job_config: dict):
+async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionStep], job_config: dict):
     """
-    Run the agent with actual code input for analysis.
+    Run the agent with input files for processing.
     
     Args:
         agent: The instantiated agent
-        input_file_path: Path to the code file to analyze
+        input_file_paths: List of paths to the files to process, or single path as string
+        execution_steps: Dictionary of execution steps to track
+        job_config: Job configuration dictionary
         
     Returns:
-        dict: Analysis results with file paths and metadata
+        dict: Execution results with file paths and metadata
     """
     # Import all required modules at once
     from google.adk import Runner
@@ -265,31 +319,50 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
     # Load environment variables
     load_dotenv()
     
-    # Read and validate input file
-    input_path = Path(input_file_path)
-    if not input_path.exists():
-        logging.error(f"Input file not found: {input_path}")
-        return None
+    # Handle input files structure
+    input_files_data = []
+    file_names = []
+    file_types = []
+    file_contents = []
     
-    with open(input_path, 'r') as f:
-        code_content = f.read()
+    # Support different input formats
+    if isinstance(input_file_paths, str):
+        # Single file path as string
+        input_file_paths = [{'path': input_file_paths, 'input_type': None}]
+    elif isinstance(input_file_paths, list):
+        # Check if it's a list of file info dicts or just paths
+        if input_file_paths and isinstance(input_file_paths[0], dict):
+            # Already in the correct format
+            pass
+        else:
+            # Convert list of paths to list of file info dicts
+            input_file_paths = [{'path': path, 'input_type': None} for path in input_file_paths]
+    
+    for file_info in input_file_paths:
+        try:
+            file_path = file_info['path']
+            input_type = file_info.get('input_type')
+            
+            file_data = read_input_file(file_path, input_type)
+            input_files_data.append(file_data)
+            file_names.append(file_data['file_name'])
+            file_types.append(file_data['file_type'])
+            file_contents.append(file_data['file_content'])
+        except FileNotFoundError as e:
+            logging.error(str(e))
+            return None
     
     # Display input information
-    logging.info("\n" + "=" * 60)
-    logging.info(f"Running Agent with Input: {input_path.name}")
-    logging.info("=" * 60)
-    logging.info(f"Input file: {input_path}")
-    logging.info(f"File size: {len(code_content)} characters")
-    logging.info(f"Lines of code: {len(code_content.splitlines())}")
-    logging.info(f"\nCode preview (first 500 characters):")
-    logging.info("-" * 40)
-    logging.info(code_content[:500] + ("..." if len(code_content) > 500 else ""))
-    logging.info("-" * 40)
-    logging.info(f"\nExecuting agent workflow...")
+    logging.info(f"Running agent with {len(input_files_data)} input file(s)")
+    total_size = sum(data['file_size'] for data in input_files_data)
+    
+    for i, file_data in enumerate(input_files_data, 1):
+        logging.info(f"  {i}. {file_data['file_name']} ({file_data['file_size']} chars, {file_data['file_type']})")
+    
+    logging.info(f"Total size: {total_size} characters")
 
     # Create analysis request using Jinja2 template synthesis
     analysis_config = job_config.get('analysis_config', {})
-    input_config = job_config.get('input_config', {})
     
     # Load and synthesize template using Jinja2
     template_config_path = analysis_config.get('template_config_path')
@@ -298,8 +371,7 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
     template_config = load_template_config(template_full_path)
     
     user_query = synthesize_user_query_jinja2(
-        template_config, analysis_config, input_config, 
-        code_content, input_path.name
+        template_config, file_names, file_types, file_contents
     )
     logging.info(f"Synthesized query using Jinja2: {len(user_query)} characters")
 
@@ -343,20 +415,17 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
                         for part in event.content.parts:
                             if hasattr(part, "text") and part.text:
                                 final_response += part.text
-                    logging.info(f"📨 Final response received with {len(final_response)} characters")
-                    preview = (final_response[:256].replace('\n', ' ') + "..." 
-                             if len(final_response) > 256 else final_response)
-                    logging.info(f"   📝 Final response preview: {preview}")
+                    logging.info(f"Final response received: {len(final_response)} characters")
                     final_responses[event.author] = final_response
             else:
                 # Even events without content are valuable for tracking
                 logging.debug(f"📨 Event {event_count}: {type(event).__name__} has no content.")
 
-        logging.info(f"\n✅ Analysis completed! Generated {event_count} events")
+        logging.info(f"Execution completed: {event_count} events generated")
 
         # Save results
-        output_file, json_file = _save_analysis_results(
-            input_path, agent, event_count, final_responses, code_content, job_config
+        output_file, json_file = _save_results(
+            input_files_data, agent, event_count, final_responses, job_config
         )
         
         return {
@@ -365,7 +434,7 @@ async def run_job(agent, input_file_path: str, execution_steps: Dict[str, Execut
             "json_file": json_file,
             "events_generated": event_count,
             "response_length": sum(len(resp) for resp in final_responses.values()),
-            "analysis_results": final_responses,
+            "execution_results": final_responses,
         }
         
     except Exception as e:
@@ -394,7 +463,7 @@ def _display_results_summary(results):
 
 
 async def main_async(job_name: str = "simple_code_improvement"):
-    """Main async function that creates and runs the code improvement agent."""
+    """Main async function that creates and runs the flexible agent."""
     
     try:
         # Load job configuration
@@ -405,22 +474,18 @@ async def main_async(job_name: str = "simple_code_improvement"):
         if yaml_path.exists():
             job_config_path = yaml_path
             logging.info(f"Using YAML job config: {job_config_path}")
-        # elif json_path.exists():
-        #     job_config_path = json_path
-        #     logging.info(f"Using JSON job config: {job_config_path}")
         else:
             raise FileNotFoundError(f"No job config found for '{job_name}' in YAML or JSON format")
         job_config = load_job_config(job_config_path)
         logging.info(f"Loaded job config: {job_config.get('job_name', 'Unknown')}")
         
-        job_name = job_config.get('job_name', 'Code Improvement Agent')
-        logging.info(f"{job_name} - Live Execution Demo")
-        logging.info("=" * 60)
+        job_name = job_config.get('job_name', 'Flexible Agent')
+        logging.info(f"{job_name} - Execution")
 
         # Create agent using job config
         agent_config = job_config.get('agent_config', {})
         config_path = Path(__file__).parent.parent / agent_config.get('config_path', 'config/agent/json_examples/simple_code_improvement.json')
-        logging.info("Creating Code Improvement Agent...")
+        logging.info("Creating agent...")
         agent = create_agent_from_config_file(config_path)
         
         if agent is None:
@@ -440,9 +505,25 @@ async def main_async(job_name: str = "simple_code_improvement"):
         
         # Run agent analysis using job config
         input_config = job_config.get('input_config', {})
-        input_file = Path(__file__).parent.parent / input_config.get('input_file_path', 'agent_io/agent_io.py')
-        logging.info(f"\n💡 Executing agent analysis on: {input_file}")
-        results = await run_job(agent, input_file, execution_steps, job_config)
+        
+        # Handle input_files structure with input_path and input_type
+        if 'input_files' in input_config:
+            input_files_config = input_config['input_files']
+            input_files = []
+            
+            logging.info(f"Executing agent on {len(input_files_config)} files:")
+            for i, file_config in enumerate(input_files_config, 1):
+                file_path = Path(__file__).parent.parent / file_config['input_path']
+                input_files.append({
+                    'path': file_path,
+                    'input_type': file_config.get('input_type')
+                })
+                logging.info(f"  {i}. {file_path} ({file_config.get('input_type', 'auto')})")
+        else:
+            logging.error("No input_files found in input_config. Please configure input_files with input_path and input_type.")
+            return 1
+        
+        results = await run_job(agent, input_files, execution_steps, job_config)
         
         # Display results
         report_config = job_config.get('report_config', {})
@@ -451,9 +532,7 @@ async def main_async(job_name: str = "simple_code_improvement"):
             if execution_config.get('track_execution_steps', True):
                 report_finished_steps(execution_steps)
         
-        logger.info("\n" + "=" * 60)
-        logger.info("Agent execution completed successfully!")
-        logger.info("=" * 60)
+        logging.info("Agent execution completed successfully!")
 
         return 0
         
@@ -467,7 +546,7 @@ async def main_async(job_name: str = "simple_code_improvement"):
 if __name__ == "__main__":
     # Add argparse support for command line execution
     import argparse
-    parser = argparse.ArgumentParser(description="Run the Code Improvement Agent with a specified job configuration.")
+    parser = argparse.ArgumentParser(description="Run the Flexible Agent with a specified job configuration.")
     parser.add_argument('--job_name', type=str, default='simple_code_improvement',
                         help='Name of the job configuration to run (default: simple_code_improvement)')
     args = parser.parse_args()

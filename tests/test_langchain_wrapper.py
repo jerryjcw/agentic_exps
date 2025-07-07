@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch, MagicMock
 # Add project paths
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 wrapper_dir = os.path.join(project_root, 'wrapper')
-basics_dir = os.path.join(project_root, 'basics')
-sys.path.extend([wrapper_dir, basics_dir])
+core_dir = os.path.join(project_root, 'core')
+sys.path.extend([wrapper_dir, core_dir])
 
 try:
     from langchain_litellm_wrapper import create_langchain_litellm_wrapper, LangChainLiteLLMWrapper

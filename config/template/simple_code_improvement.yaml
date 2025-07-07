@@ -6,19 +6,42 @@ template_engine: "jinja2"
 template_content: |
   Please analyze the following {{ language }} code for improvements:
 
-  File: {{ file_name }}
-  Language: {{ language }}
-  Framework: {{ framework }}
+  {% if file_name|length == 1 -%}
+  File: {{ file_name[0] }}
 
   Code to analyze:
-  ```{{ language_code_block }}
-  {{ code_content }}
+  ```{{ file_type[0] }}
+  {{ file_content[0] }}
   ```
+  {% else -%}
+  Files to analyze ({{ file_name|length }} files):
+
+  {% for i in range(file_name|length) -%}
+  ## File {{ loop.index }}: {{ file_name[i] }}
+  
+  File Type: {{ file_type[i] }}
+  
+  Code:
+  ```{{ file_type[i] }}
+  {{ file_content[i] }}
+  ```
+
+  {% endfor -%}
+  {% endif -%}
 
   Please provide a comprehensive analysis focusing on:
   {% for item in analysis_focus -%}
   {{ loop.index }}. {{ item }}
   {% endfor %}
+  
+  {% if file_name|length > 1 -%}
+  When analyzing multiple files, please consider:
+  - Relationships and dependencies between the files
+  - Cross-file consistency in coding patterns and conventions
+  - Potential integration issues or conflicts
+  - Overall architecture and design patterns across the codebase
+  {% endif -%}
+  
   Provide specific recommendations with examples where possible.
 
 template_variables:
@@ -27,34 +50,22 @@ template_variables:
     type: "string"
     default: "Python"
   file_name:
-    description: "Name of the file being analyzed"
-    type: "string"
-    default: "unknown_file"
-  framework:
-    description: "Framework or toolkit being used"
-    type: "string"
-    default: "Generic"
-  language_code_block:
-    description: "Language identifier for code block formatting"
-    type: "string"
-    default: "python"
-  code_content:
-    description: "The actual code content to analyze"
-    type: "string"
-    default: "# No code provided"
+    description: "Array of file names being analyzed"
+    type: "array"
+    default: ["unknown_file"]
+  file_type:
+    description: "Array of file types corresponding to each file"
+    type: "array"
+    default: ["text"]
+  file_content:
+    description: "Array of file contents corresponding to each file"
+    type: "array"
+    default: [""]
   analysis_focus:
     description: "List of analysis focus areas"
     type: "array"
     default:
-      - "General code quality"
-      - "Basic improvements"
-
-language_mapping:
-  Python: "python"
-  JavaScript: "javascript"
-  Java: "java"
-  "C++": "cpp"
-  C: "c"
-  TypeScript: "typescript"
-  Go: "go"
-  Rust: "rust"
+      - "Security vulnerabilities and defensive measures"
+      - "Performance bottlenecks and optimization opportunities"
+      - "Code quality issues and maintainability improvements"
+      - "Testing gaps and coverage recommendations"
