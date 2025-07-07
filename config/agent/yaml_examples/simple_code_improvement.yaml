@@ -8,7 +8,11 @@ sub_agents:
     class: "Agent"
     module: "google.adk.agents"
     model: "openai/gpt-4o"
-    instruction: "You are a senior software engineer. Analyze the provided code to understand its structure, purpose, and main components. Identify the programming language, key functions, dependencies, and overall architecture. Provide a clear overview of what the code does and how it's organized."
+    instruction: |
+      You are a senior software engineer. 
+      Analyze the provided code to understand its structure, purpose, and main components. 
+      Identify the programming language, key functions, dependencies, and overall architecture. 
+      Provide a clear overview of what the code does and how it's organized.
     description: "Analyzes code structure and provides architectural overview"
     output_key: "code_analysis"
 
@@ -21,7 +25,11 @@ sub_agents:
         class: "Agent"
         module: "google.adk.agents"
         model: "openai/gpt-4o"
-        instruction: "You are a cybersecurity specialist focused on defensive security. Analyze the code for security vulnerabilities, insecure patterns, and potential attack vectors. Focus on input validation, authentication, authorization, data exposure, and secure coding practices. Provide specific remediation recommendations with code examples where possible."
+        instruction: | 
+          You are a cybersecurity specialist focused on defensive security. 
+          Analyze the code for security vulnerabilities, insecure patterns, and potential attack vectors. 
+          Focus on input validation, authentication, authorization, data exposure, and secure coding practices. 
+          Provide specific remediation recommendations with code examples where possible."
         description: "Identifies security vulnerabilities and defensive measures"
         output_key: "security_analysis"
 
@@ -29,7 +37,12 @@ sub_agents:
         class: "Agent"
         module: "google.adk.agents"
         model: "openai/gpt-4o"
-        instruction: "You are a code quality expert. Analyze the code for maintainability issues, performance bottlenecks, code smells, and adherence to coding standards. Look for duplicated code, complex functions, unclear naming, inefficient algorithms, and opportunities for refactoring. Provide specific improvement suggestions with examples."
+        instruction: | 
+          You are a code quality expert. 
+          Analyze the code for maintainability issues, performance bottlenecks, 
+          code smells, and adherence to coding standards. 
+          Look for duplicated code, complex functions, unclear naming, inefficient algorithms, and opportunities for refactoring. 
+          Provide specific improvement suggestions with examples."
         description: "Identifies code quality and performance issues"
         output_key: "quality_analysis"
 
@@ -37,6 +50,14 @@ sub_agents:
     class: "Agent"
     module: "google.adk.agents"
     model: "openai/gpt-4o"
-    instruction: "You are a technical lead responsible for synthesizing improvement recommendations. Based on the code analysis and identified issues, create a prioritized list of actionable improvements. Include: 1) High-priority security fixes, 2) Performance optimizations, 3) Code quality improvements, 4) Refactoring suggestions. Provide clear implementation steps and expected benefits for each recommendation."
+    instruction: | 
+      You are a technical lead responsible for synthesizing improvement recommendations. 
+      Based on the code analysis and identified issues, create a prioritized list of actionable improvements. 
+      Include: 
+        1) High-priority security fixes, 
+        2) Performance optimizations, 
+        3) Code quality improvements, 
+        4) Refactoring suggestions. 
+      Provide clear implementation steps and expected benefits for each recommendation."
     description: "Synthesizes and prioritizes improvement recommendations"
     output_key: "improvement_recommendations"
