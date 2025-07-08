@@ -38,7 +38,8 @@ except ImportError as e:
     print(f"Warning: LangChain not available: {e}")
 
 try:
-    from tools.gadk.tools import AVAILABLE_TOOLS
+    from tools.gadk.registry import get_all_tools
+    AVAILABLE_TOOLS = get_all_tools()
     TOOLS_AVAILABLE = True
 except ImportError:
     TOOLS_AVAILABLE = False

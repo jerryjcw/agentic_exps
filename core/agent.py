@@ -54,14 +54,14 @@ def create_agent(model="openai:gpt-4o", name="LiteLLMAssistant", instruction=Non
 
 You have access to the following tools to provide accurate, real-time information:
 
-1. get_taipei_time: Use this tool when users ask about the current time in Taipei, Taiwan. 
+1. get_taipei_time_tool: Use this tool when users ask about the current time in Taipei, Taiwan. 
    - Call this for questions like "What time is it in Taipei?", "Current time in Taipei", etc.
 
-2. get_temperature: Use this tool when users ask about weather or temperature for any location.
+2. get_temperature_tool: Use this tool when users ask about weather or temperature for any location.
    - Call this for questions like "What's the weather in [city]?", "Temperature in [location]", "How's the weather in [place]?", etc.
    - This tool requires a location parameter (city name).
 
-3. google_search: Use this tool when users ask for current information, recent news, definitions, or specific topics that require web search.
+3. google_search_tool: Use this tool when users ask for current information, recent news, definitions, or specific topics that require web search.
    - Call this for questions like "What's the latest news about [topic]?", "Search for [query]", "Find information about [subject]", "What is [term]?", "Tell me about [concept]", etc.
    - This tool requires a query parameter (search terms) and optionally num_results (default: 5, max: 10).
    - Use this when users need factual information, definitions, explanations of concepts, current events, or any topic that would benefit from search results.
@@ -281,17 +281,22 @@ Supported Models:
     tools = None
     if args.with_tools:
         try:
-            from tools.gadk.tools import AVAILABLE_TOOLS
-            tools = AVAILABLE_TOOLS
-            print(f"🔧 Enabled {len(tools)} tools: Taipei time, weather lookup, Google search")
+            from tools.gadk.registry import get_all_tools, registry
+            tools = get_all_tools()
+            print(f"🔧 Enabled {len(tools)} tools: {tools}")
         except ImportError as e:
             print(f"⚠️  Could not import tools: {e}")
-            print("Make sure tools.py is available and dependencies are installed.")
+            print("Make sure registry is available and dependencies are installed.")
     
     # Create agent with specified model and optional tools
     print(f"Tools available: {tools is not None}, they are: {tools if tools else 'None'}")
     print(f"Using LangChain wrapper: {args.use_langchain}")
-    agent = create_agent(model=args.model, name=args.name, tools=tools, use_langchain=args.use_langchain)
+    agent = create_agent(
+        model=args.model, 
+        name=args.name, 
+        tools=[registry.get_current_time_tool, registry.get_temperature_tool, registry.google_search_tool], 
+        use_langchain=args.use_langchain
+    )
     
     # Check if we should run in interactive mode
     if args.interactive:

@@ -37,7 +37,7 @@ except ImportError as e:
     print(f"Warning: LangChain not available: {e}")
 
 try:
-    from tools.gadk.tools import google_search_tool, temperature_tool, current_time_tool
+    from tools.gadk.registry import registry
     TOOLS_AVAILABLE = True
 except ImportError:
     TOOLS_AVAILABLE = False
@@ -258,7 +258,7 @@ class TestToolIntegration(BaseIntegrationTest):
             name="ToolTestAgent",
             model=model,
             instruction=instruction,
-            tools=[google_search_tool, temperature_tool, current_time_tool]
+            tools=[registry.google_search_tool, registry.get_temperature_tool, registry.get_current_time_tool]
         )
         
         return agent

@@ -217,10 +217,10 @@ class TestDocumentReaderIntegration(unittest.TestCase):
     
     def test_pdf_reading_with_test_file(self):
         """Test PDF reading with the actual test PDF file."""
-        pdf_path = Path(__file__).parent / "resources" / "test.pdf"
+        pdf_path = Path(__file__).parent / "resources" / "test2.pdf"
         
         if not pdf_path.exists():
-            self.skipTest("Test PDF file not found at tests/resources/test.pdf")
+            self.skipTest("Test PDF file not found at tests/resources/test2.pdf")
         
         content = self.reader.read_document(pdf_path)
         
@@ -231,14 +231,17 @@ class TestDocumentReaderIntegration(unittest.TestCase):
         # Should contain page marker
         self.assertIn("--- Page 1 ---", content)
         
-        # Should contain some expected content from the invoice
-        self.assertIn("Different I.T. GmbH", content)
-        self.assertIn("VK/2025/00356", content)
-        self.assertIn("Jerry Wu", content)
+        # Should contain some expected content from UK HBAI government report
+        self.assertIn("HBAI", content)
+        self.assertIn("Households Below Average Income", content)
+        self.assertIn("UK", content)
+        self.assertIn("income", content)
+        self.assertIn("National Statistics", content)
+        self.assertIn("DWP", content)
         
-        # Should have reasonable content length
-        self.assertGreater(len(content), 1000)
-        self.assertLess(len(content), 5000)  # Reasonable upper bound
+        # Should have reasonable content length for government report
+        self.assertGreater(len(content), 10000)
+        self.assertLess(len(content), 50000)  # Reasonable upper bound for government report PDF
         
         print(f"✅ PDF test successful: {len(content)} characters extracted")
     

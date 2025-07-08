@@ -37,7 +37,7 @@ except ImportError as e:
     print(f"Warning: OpenAI wrapper not available: {e}")
 
 try:
-    from tools.gadk.tools import google_search_tool, temperature_tool, current_time_tool
+    from tools.gadk.registry import registry
     TOOLS_AVAILABLE = True
 except ImportError:
     TOOLS_AVAILABLE = False
@@ -199,7 +199,7 @@ class TestWeatherAgentWithOpenAIWrapper(BaseOpenAIWrapperTest):
             name="WeatherAgentWithWrapper",
             model=model,
             instruction=instruction,
-            tools=[google_search_tool, temperature_tool]
+            tools=[registry.google_search_tool, registry.get_temperature_tool]
         )
         
         return agent
@@ -277,7 +277,7 @@ class TestSequentialAgentsWithOpenAIWrapper(BaseOpenAIWrapperTest):
             name="SearchAgent",
             model=search_model,
             instruction="Find the nearest capital city to the given location using web search.",
-            tools=[google_search_tool],
+            tools=[registry.google_search_tool],
             output_key="capital_city"
         )
         
@@ -286,7 +286,7 @@ class TestSequentialAgentsWithOpenAIWrapper(BaseOpenAIWrapperTest):
             name="WeatherAgent", 
             model=weather_model,
             instruction="Get weather information for the capital city found by the previous agent.",
-            tools=[temperature_tool],
+            tools=[registry.get_temperature_tool],
             output_key="weather_info"
         )
         
@@ -295,7 +295,7 @@ class TestSequentialAgentsWithOpenAIWrapper(BaseOpenAIWrapperTest):
             name="TimeAgent",
             model=time_model,
             instruction="Add current time for any city to the weather report.",
-            tools=[current_time_tool],
+            tools=[registry.get_current_time_tool],
             output_key="final_report"
         )
         

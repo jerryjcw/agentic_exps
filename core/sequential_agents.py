@@ -19,8 +19,8 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.runners import types
 from google.adk.models.lite_llm import LiteLlm
 
-# Import our tools
-from tools.gadk.tools import google_search_tool, temperature_tool, current_time_tool
+# Import our tools from registry
+from tools.gadk.registry import registry
 
 load_dotenv()
 
@@ -41,15 +41,20 @@ Important guidelines:
 - Focus on finding the CAPITAL CITY specifically, not just major cities
 - Be precise about the capital city name
 
+The google_search tool contains two inputs, the first one is the search query, and the second one is the number of results to return. 
+Prepare two inputs for the tool:
+1. A search query that includes the location and asks for the nearest capital city
+2. The number of results to return (set this to 3)
+For example, you can use google_search_tool("What is the nearest capital city to Tokyo, Japan?", 3)
 Store your findings using the key "capital_city" in your response.
 Format your response as: "The nearest capital city to [location] is [capital_city], [country]."
 """
-    
+
     return Agent(
         name="GeographicSearchAgent",
         model=LiteLlm(model='openai/gpt-4o'),
         instruction=instruction,
-        tools=[google_search_tool],
+        tools=[registry.google_search_tool],
         output_key="capital_city"
     )
 
@@ -76,7 +81,7 @@ Store your findings using the key "weather_info" in your response.
         name="WeatherInformationAgent", 
         model=LiteLlm(model='openai/gpt-4o'),
         instruction=instruction,
-        tools=[temperature_tool],
+        tools=[registry.get_temperature_tool],
         output_key="weather_info"
     )
 
@@ -103,7 +108,7 @@ Store your final report using the key "final_report" in your response.
         name="TimeInformationAgent",
         model=LiteLlm(model='openai/gpt-4o'), 
         instruction=instruction,
-        tools=[current_time_tool],
+        tools=[registry.get_current_time_tool],
         output_key="final_report"
     )
 

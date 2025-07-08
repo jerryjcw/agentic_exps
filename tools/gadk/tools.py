@@ -16,6 +16,11 @@ import requests
 import os
 import time
 from typing import Dict
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 def get_current_time(city: str) -> Dict[str, str]:
@@ -34,6 +39,7 @@ def get_current_time(city: str) -> Dict[str, str]:
             - report: Current time in the specified city formatted as string
             - error_message: Error description if status is "error"
     """
+    logging.info(f"🔍 Getting current time for city: {city}")
     try:
         # Use TimeZoneDB API to get timezone for the city
         # This is a free service that doesn't require API key for basic usage
@@ -166,7 +172,7 @@ def get_temperature(location: str) -> Dict[str, str]:
             - report: Temperature information if successful
             - error_message: Error description if status is "error"
     """
-    print(f"🔍 Getting temperature for location: {location}")
+    logging.info(f"🔍 Getting temperature for location: {location}")
     try:
         # Use wttr.in - a free weather service
         # Format: ?format=j1 returns JSON with detailed weather info
@@ -269,7 +275,7 @@ def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
             - report: Search results if successful
             - error_message: Error description if status is "error"
     """
-    print(f"🔍 Performing Google search for: {query}")
+    logging.info(f"🔍 Performing Google search for: {query}")
     
     # Limit num_results to reasonable bounds
     num_results = max(1, min(10, num_results))
@@ -364,53 +370,8 @@ def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
     }
 
 
-# Import FunctionTool for Google ADK compatibility
-from google.adk.tools import FunctionTool
-
-# Import financial tools
-try:
-    from tools.gadk.financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
-    FINANCIAL_AVAILABLE = True
-except ImportError:
-    try:
-        from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
-        FINANCIAL_AVAILABLE = True
-    except ImportError:
-        try:
-            import sys
-            import os
-            sys.path.append(os.path.dirname(__file__))
-            from financial_tools import get_earnings_report, get_company_news, FINANCIAL_TOOLS
-            FINANCIAL_AVAILABLE = True
-        except ImportError:
-            FINANCIAL_AVAILABLE = False
-            print("Warning: Financial tools not available")
-
-# Wrap functions with FunctionTool for Google ADK agent usage
-current_time_tool = FunctionTool(get_current_time)
-temperature_tool = FunctionTool(get_temperature)
-google_search_tool = FunctionTool(google_search)
-
-# Tool registry for easy import
-AVAILABLE_TOOLS = [
-    current_time_tool,
-    temperature_tool,
-    google_search_tool
-]
-
-# Add financial tools if available
-if FINANCIAL_AVAILABLE:
-    AVAILABLE_TOOLS.extend(FINANCIAL_TOOLS)
-
-# Also provide the raw functions for direct testing
-RAW_FUNCTIONS = [
-    get_current_time,
-    get_temperature,
-    google_search
-]
-
-if FINANCIAL_AVAILABLE:
-    RAW_FUNCTIONS.extend([get_earnings_report, get_company_news])
+# All tools are now managed by the registry
+# Use: from tools.gadk.registry import registry, get_all_tools
 
 
 if __name__ == "__main__":
@@ -447,39 +408,64 @@ if __name__ == "__main__":
     else:
         print(f"Error: {result['error_message']}")
     
-    # Test FunctionTool wrappers
-    print("\n4. Testing FunctionTool wrappers:")
-    print(f"✅ current_time_tool: {type(current_time_tool)}")
-    print(f"✅ temperature_tool: {type(temperature_tool)}")
-    print(f"✅ google_search_tool: {type(google_search_tool)}")
+    # Test FunctionTool wrappers via registry
+    print("\n4. Testing FunctionTool wrappers via registry:")
+    from tools.gadk.registry import registry, get_all_tools
     
-    if FINANCIAL_AVAILABLE:
-        print(f"✅ Financial tools available: {len(FINANCIAL_TOOLS)} tools")
-        print(f"✅ Testing earnings report tool:")
-        result = get_earnings_report("NFLX", "US")
-        print(f"   Status: {result['status']}")
-        if result['status'] == 'success':
-            if 'data' in result and 'company' in result['data']:
-                company_data = result['data']['company']
-                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['symbol']})")
-                print(f"   Market: {company_data['market']}")
-                print(f"   Quarters: {result['data']['report_metadata']['quarters_included']}")
+    all_tools = get_all_tools()
+    print(f"✅ Registry has {len(all_tools)} tools ready for Google ADK agent")
+    
+    # Test registry access
+    if 'get_current_time_tool' in registry:
+        print(f"✅ current_time_tool: {type(registry.get_current_time_tool)}")
+    if 'get_temperature_tool' in registry:
+        print(f"✅ temperature_tool: {type(registry.get_temperature_tool)}")
+    if 'google_search_tool' in registry:
+        print(f"✅ google_search_tool: {type(registry.google_search_tool)}")
+    
+    # Test financial tools via registry (using raw functions)
+    if 'get_earnings_report_tool' in registry:
+        print(f"✅ Financial tools available via registry")
+        print(f"✅ Testing earnings report tool (raw function):")
+        try:
+            try:
+                from tools.gadk.financial_tools import get_earnings_report
+            except ImportError:
+                from financial_tools import get_earnings_report
+            result = get_earnings_report("NFLX", "US")
+            print(f"   Status: {result['status']}")
+            if result['status'] == 'success':
+                if 'data' in result and 'company' in result['data']:
+                    company_data = result['data']['company']
+                    print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['symbol']})")
+                    print(f"   Market: {company_data['market']}")
+                    print(f"   Quarters: {result['data']['report_metadata']['quarters_included']}")
+                else:
+                    print(f"   Sample JSON: {result['report'][:200]}...")
             else:
-                print(f"   Sample JSON: {result['report'][:200]}...")
-        print(result)
-
-        print(f"✅ Testing company news tool:")
-        result = get_company_news("AAPL", 2, "US")
-        print(f"   Status: {result['status']}")
-        if result['status'] == 'success':
-            if 'data' in result and 'company' in result['data']:
-                company_data = result['data']['company']
-                print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['identifier']})")
-                print(f"   Market: {company_data['market']}")
-                print(f"   Articles: {result['data']['report_metadata']['articles_count']}")
+                print(f"   Error: {result['error_message']}")
+        except ImportError:
+            print(f"   ⚠️ Financial tools not available for testing")
+        
+        print(f"✅ Testing company news tool (raw function):")
+        try:
+            try:
+                from tools.gadk.financial_tools import get_company_news
+            except ImportError:
+                from financial_tools import get_company_news
+            result = get_company_news("AAPL", 2, "US")
+            print(f"   Status: {result['status']}")
+            if result['status'] == 'success':
+                if 'data' in result and 'company' in result['data']:
+                    company_data = result['data']['company']
+                    print(f"   Company: {company_data.get('name', 'N/A')} ({company_data['identifier']})")
+                    print(f"   Market: {company_data['market']}")
+                    print(f"   Articles: {result['data']['report_metadata']['articles_count']}")
+                else:
+                    print(f"   Sample JSON: {result['report'][:200]}...")
             else:
-                print(f"   Sample JSON: {result['report'][:200]}...")
+                print(f"   Error: {result['error_message']}")
+        except ImportError:
+            print(f"   ⚠️ Company news tool not available for testing")
     else:
-        print(f"⚠️  Financial tools not available")
-    
-    print(f"✅ AVAILABLE_TOOLS has {len(AVAILABLE_TOOLS)} tools ready for Google ADK agent")
+        print(f"⚠️  Financial tools not available in registry")

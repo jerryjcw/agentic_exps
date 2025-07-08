@@ -53,39 +53,29 @@ def _create_tool_from_dict(tool_config: dict):
 def _create_tool_from_config(tool_config):
     """Creates a tool from either a string name or dictionary configuration."""
     if isinstance(tool_config, str):
-        # Handle string tool names by looking up common functions
+        # Handle string tool names by using the registry
         tool_name = tool_config
         
-        # Try to import common tool functions
-        try:
-            # Try from tools.gadk.tools (updated function names)
-            from tools.gadk.tools import get_current_time, get_temperature, google_search
-            tool_functions = {
-                'get_current_time': get_current_time,
-                'get_temperature': get_temperature,
-                'google_search': google_search,
-                # Legacy support
-                'get_taipei_time': get_current_time  # Map old name to new function
-            }
-            
-            # Try to import financial tools as well
-            try:
-                from tools.gadk.financial_tools import get_earnings_report, get_company_news
-                financial_tools = {
-                    'get_earnings_report': get_earnings_report,
-                    'get_company_news': get_company_news
-                }
-                tool_functions.update(financial_tools)
-            except ImportError:
-                pass  # Financial tools are optional
-            
-            if tool_name in tool_functions:
-                return FunctionTool(tool_functions[tool_name])
-            else:
-                raise ValueError(f"Unknown tool name: {tool_name}. Available tools: {list(tool_functions.keys())}")
-                
-        except ImportError as e:
-            raise ValueError(f"Could not import tools module to resolve tool name '{tool_name}': {e}")
+        from tools.gadk.registry import registry
+        
+        # Try to get the tool from the registry
+        if tool_name in registry:
+            return registry[tool_name]
+        
+        # Try with _tool suffix
+        tool_name_with_suffix = f"{tool_name}_tool"
+        if tool_name_with_suffix in registry:
+            return registry[tool_name_with_suffix]
+        
+        # Try without _tool suffix if it has one
+        if tool_name.endswith("_tool"):
+            tool_name_without_suffix = tool_name[:-5]
+            if tool_name_without_suffix in registry:
+                return registry[tool_name_without_suffix]
+        
+        # If tool not found, provide helpful error message
+        available_tools = list(registry.get_all_tools().keys())
+        raise ValueError(f"Unknown tool name: '{tool_name}'. Available tools in registry: {available_tools}")
     
     elif isinstance(tool_config, dict):
         return _create_tool_from_dict(tool_config)
@@ -120,7 +110,15 @@ def _agent_to_dict(agent: BaseAgent, visited_agents=None) -> dict:
         if hasattr(agent, param):
             value = getattr(agent, param)
             if value is not None:
-                config[param] = value
+                # Handle model serialization
+                if param == "model":
+                    # Convert model object to string representation
+                    if hasattr(value, 'model'):
+                        config[param] = value.model
+                    else:
+                        config[param] = str(value)
+                else:
+                    config[param] = value
     
     # Handle other agent attributes (for backward compatibility and extensibility)
     for key, value in agent.__dict__.items():

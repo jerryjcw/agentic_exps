@@ -14,6 +14,10 @@ import os
 from typing import Dict, List, Any
 from datetime import datetime
 from urllib.parse import quote
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # import .env file
 from dotenv import load_dotenv
@@ -23,16 +27,14 @@ load_dotenv()
 
 # Import Google search function for news search
 try:
-    from tools import google_search
+    from .tools import google_search
 except ImportError:
     try:
-        import sys
-        import os
-        sys.path.append(os.path.dirname(__file__))
-        from tools import google_search
+        from tools.gadk.tools import google_search
     except ImportError:
         # Fallback - define a simple search function
         def google_search(query: str, num_results: int = 5) -> Dict[str, str]:
+            logging.info("Google search function not available. Using fallback.")
             return {
                 "status": "error",
                 "error_message": "Google search function not available"
@@ -568,31 +570,8 @@ def _format_yahoo_earnings_json(symbol: str, market: str, earnings_data: Dict) -
 
 
 
-# Import FunctionTool for Google ADK compatibility
-try:
-    from google.adk.tools import FunctionTool
-    
-    # Wrap functions with FunctionTool for Google ADK agent usage
-    earnings_report_tool = FunctionTool(get_earnings_report)
-    company_news_tool = FunctionTool(get_company_news)
-    
-    # Tool registry for easy import
-    FINANCIAL_TOOLS = [
-        earnings_report_tool,
-        company_news_tool
-    ]
-    
-    # Also provide the raw functions for direct testing
-    RAW_FINANCIAL_FUNCTIONS = [
-        get_earnings_report,
-        get_company_news
-    ]
-    
-except ImportError:
-    # If Google ADK is not available, provide empty lists
-    FINANCIAL_TOOLS = []
-    RAW_FINANCIAL_FUNCTIONS = [get_earnings_report]
-    print("Warning: Google ADK not available. FunctionTool wrappers not created.")
+# All tools are now managed by the registry
+# Use: from tools.gadk.registry import registry, get_all_tools
 
 
 if __name__ == "__main__":
@@ -668,14 +647,18 @@ if __name__ == "__main__":
         
         print("-" * 60)
     
-    # Test FunctionTool wrapper if available
-    if FINANCIAL_TOOLS:
-        print(f"\n3. Testing FunctionTool Wrappers:")
-        print("=" * 40)
-        print(f"✅ Financial FunctionTool wrappers created:")
-        print(f"   • earnings_report_tool: {type(earnings_report_tool)}")
-        print(f"   • company_news_tool: {type(company_news_tool)}")
-        print(f"   • FINANCIAL_TOOLS has {len(FINANCIAL_TOOLS)} tools ready for Google ADK agent")
+    # Test FunctionTool wrapper via registry
+    print(f"\n3. Testing FunctionTool Wrappers via registry:")
+    print("=" * 40)
+    from tools.gadk.registry import registry, get_all_tools
+    
+    all_tools = get_all_tools()
+    print(f"✅ Registry has {len(all_tools)} tools ready for Google ADK agent")
+    
+    if 'get_earnings_report_tool' in registry:
+        print(f"✅ Financial FunctionTool wrappers available:")
+        print(f"   • earnings_report_tool: {type(registry.get_earnings_report_tool)}")
+        print(f"   • company_news_tool: {type(registry.get_company_news_tool)}")
     else:
-        print(f"\n⚠️  Google ADK not available - raw functions only")
+        print(f"⚠️  Google ADK not available - raw functions only")
     

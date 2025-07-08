@@ -15,8 +15,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from google.adk.agents import Agent, SequentialAgent, ParallelAgent, LoopAgent
-from tools.gadk.tools import get_current_time, get_temperature, google_search
-from google.adk.tools import FunctionTool
+from tools.gadk.registry import registry
 
 from agent_io.agent_io import (
     save_agent_to_config, 
@@ -48,9 +47,9 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
             description="A test agent that includes all possible parameters.",
             output_key="test_output",
             tools=[
-                FunctionTool(get_current_time), 
-                FunctionTool(get_temperature),
-                FunctionTool(google_search)
+                registry.get_current_time_tool, 
+                registry.get_temperature_tool,
+                registry.google_search_tool
             ]
         )
         
@@ -181,7 +180,7 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
     def test_financial_tools_integration(self):
         """Test that financial tools can be serialized and deserialized."""
         try:
-            from tools.gadk.financial_tools import get_earnings_report, get_company_news
+            # Financial tools should be available via registry
             
             original_agent = Agent(
                 name="FinancialAgent",
@@ -189,9 +188,9 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
                 instruction="You are a financial analysis agent.",
                 description="Agent with financial tools",
                 tools=[
-                    FunctionTool(get_earnings_report),
-                    FunctionTool(get_company_news),
-                    FunctionTool(get_current_time)
+                    registry.get_earnings_report_tool,
+                    registry.get_company_news_tool,
+                    registry.get_current_time_tool
                 ]
             )
             
@@ -219,7 +218,7 @@ class TestComprehensiveAgentParameters(unittest.TestCase):
             instruction="Inner agent instruction.",
             description="Inner agent description",
             output_key="inner_output",
-            tools=[FunctionTool(get_current_time)]
+            tools=[registry.get_current_time_tool]
         )
         
         # Loop agent with inner agent

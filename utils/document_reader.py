@@ -763,17 +763,13 @@ def read_documents(file_paths):
 if __name__ == "__main__":
     # Example usage
     reader = DocumentReader()
-    
     print("Supported formats:", reader.get_supported_formats())
-    content = read_documents(["tests/resources/test.pdf", "tests/resources/test.docx"])
-    print(content['test.pdf'])
-    reader.save_markdown(content['test.docx']['content'], "output/test_docx.md")
-    # Example: read a single file
-    # content = reader.read_document("example.pdf")
-    # print(content[:500])  # Print first 500 characters
-    
-    # Example: read multiple files
-    # file_paths = ["doc1.pdf", "doc2.docx", "data.csv"]
-    # results = reader.read_multiple_documents(file_paths)
-    # for filename, info in results.items():
-    #     print(f"{filename}: {info['status']}")
+    docs = ["tests/resources/test.pdf", "tests/resources/test2.pdf", "tests/resources/test.docx"]
+    for doc in docs:
+        print(f'The document is {doc}')
+        if reader.is_supported(doc):
+            print(f"Reading {doc}...")
+            content = reader.read_document(doc, as_markdown=True)
+            print(f"Content of {doc}:\n{content[:500]}...")
+        else:
+            print(f"Skipping unsupported file format: {doc}")
