@@ -6,26 +6,41 @@ This script provides a general framework for creating Google ADK agents from con
 files, supporting flexible workflows with multiple input files.
 """
 
-import os
-import sys
-import json
-import yaml
+# Standard library imports
+import argparse
 import asyncio
 import datetime
+import json
 import logging
+import os
+import sys
+import re
+import traceback
 from pathlib import Path
 from typing import Dict
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Third-party imports
+import yaml
+from dotenv import load_dotenv
+from google.adk.runners import Runner, types
+from google.adk.sessions import InMemorySessionService
+from jinja2 import Template
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from agent_io.agent_io import create_agent_from_config
+# Local imports
+from utils.document_reader import DocumentReader
+from agent_io.agent_io import create_agent_from_config, _create_agent_from_dict
 from data_model import validate_configuration_file
 from utils import analyze_agent_structure, display_agent_readiness
-from utils.agent_utils import collect_agent_execution_steps, display_execution_steps_summary, ExecutionStep, maintain_execution_status, report_finished_steps
+from utils.agent_utils import (
+    collect_agent_execution_steps, display_execution_steps_summary, 
+    ExecutionStep, maintain_execution_status, report_finished_steps
+)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_job_config(job_config_path):
@@ -63,9 +78,13 @@ def read_input_file(file_path, input_type=None, **metadata):
     if not file_path.exists():
         raise FileNotFoundError(f"Input file not found: {file_path}")
     
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
+    document_reader = DocumentReader()
+    if document_reader.is_supported(file_path):
+        content = document_reader.read_document(file_path, as_markdown=True)
+    else:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
     # Determine file type
     if input_type:
         file_type = input_type
@@ -96,11 +115,6 @@ def synthesize_user_query_jinja2(template_config, file_names, file_types, file_c
         file_types: List of file types (strings)  
         file_contents: List of file contents (strings)
     """
-    try:
-        from jinja2 import Template
-    except ImportError:
-        logging.error("Jinja2 not installed. Please install with: pip install jinja2")
-        raise
     
     # Get template content
     template_content = template_config.get('template_content', '')
@@ -241,12 +255,6 @@ def _save_results(input_files_data, agent, event_count, final_responses: Dict[st
 
 
 async def run_agent(agent, user_query, job_config: dict):
-    # Import all required modules at once
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.adk.runners import types
-    from dotenv import load_dotenv
-    
     # Load environment variables
     load_dotenv()
 
@@ -284,7 +292,6 @@ async def run_agent(agent, user_query, job_config: dict):
         return response_generator, session
     except Exception as e:
         print(f"\nError during execution: {e}")
-        import traceback
         traceback.print_exc()
         return None
 
@@ -295,6 +302,17 @@ def log_event_details(event, session):
     if hasattr(event, 'actions'):
         logging.info(f"📝 Actions: transfer_to_agent = {event.actions.transfer_to_agent}, escalate = {event.actions.escalate}")
     logging.info(f"Session state: {session.state}")
+
+
+def get_error_code_from_event(event):
+    error_code = None
+    if hasattr(event, 'content') and event.content and hasattr(event.content, 'parts') and event.content.parts and len(event.content.parts) > 0:
+        response = event.content.parts[0].text
+        # Regular expression to extract error code
+        error_code_match = re.search(r'Error code: (\d+)', response) if response else None
+        if error_code_match:
+            error_code = error_code_match.group(1)
+    return error_code
 
 
 async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionStep], job_config: dict):
@@ -310,12 +328,6 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
     Returns:
         dict: Execution results with file paths and metadata
     """
-    # Import all required modules at once
-    from google.adk import Runner
-    from google.adk.sessions import InMemorySessionService
-    from google.adk.runners import types
-    from dotenv import load_dotenv
-    
     # Load environment variables
     load_dotenv()
     
@@ -364,11 +376,17 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
     # Create analysis request using Jinja2 template synthesis
     analysis_config = job_config.get('analysis_config', {})
     
-    # Load and synthesize template using Jinja2
-    template_config_path = analysis_config.get('template_config_path')
-    logging.info(f"Using template config path from job config: {template_config_path}")
-    template_full_path = Path(__file__).parent.parent / template_config_path
-    template_config = load_template_config(template_full_path)
+    # Load template config - either from content or from file path
+    if 'template_config_content' in analysis_config:
+        # Use template content directly
+        template_config = analysis_config['template_config_content']
+        logging.info("Using template config provided as content")
+    else:
+        # Load and synthesize template using Jinja2
+        template_config_path = analysis_config.get('template_config_path')
+        logging.info(f"Using template config path from job config: {template_config_path}")
+        template_full_path = Path(__file__).parent.parent / template_config_path
+        template_config = load_template_config(template_full_path)
     
     user_query = synthesize_user_query_jinja2(
         template_config, file_names, file_types, file_contents
@@ -386,7 +404,9 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
             # Make the following paragraph a function.
             log_event_details(event, session)
 
-            author, error_code = getattr(event, 'author', 'unknown'), getattr(event, 'error_code', None)
+            author = event.author if hasattr(event, 'author') else 'unknown'
+            error_code = get_error_code_from_event(event)
+            
             if author in execution_steps:
                 step = execution_steps[author]
                 if step.status == "pending":
@@ -439,7 +459,6 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
         
     except Exception as e:
         print(f"\nError during execution: {e}")
-        import traceback
         traceback.print_exc()
         return None
 
@@ -462,35 +481,41 @@ def _display_results_summary(results):
         logging.warning("No results returned from agent execution")
 
 
-async def main_async(job_name: str = "simple_code_improvement"):
-    """Main async function that creates and runs the flexible agent."""
+async def main_async_with_config(job_config_content: str, agent_config_content: str, template_config_content: str):
+    """
+    Main async function that creates and runs the flexible agent using YAML content directly.
+    
+    Args:
+        job_config_content (str): YAML content for job configuration
+        agent_config_content (str): YAML content for agent configuration  
+        template_config_content (str): YAML content for template configuration
+        
+    Returns:
+        int: 0 for success, 1 for failure
+    """
     
     try:
-        # Load job configuration
-        # Try YAML first, then fall back to JSON
-        yaml_path = Path(__file__).parent.parent / "config" / "job" / "yaml_examples" / f"{job_name}.yaml"
-        # json_path = Path(__file__).parent.parent / "config" / "job" / "json_examples" / f"{job_name}.json"
-        
-        if yaml_path.exists():
-            job_config_path = yaml_path
-            logging.info(f"Using YAML job config: {job_config_path}")
-        else:
-            raise FileNotFoundError(f"No job config found for '{job_name}' in YAML or JSON format")
-        job_config = load_job_config(job_config_path)
+        # Parse job configuration from content
+        job_config = yaml.safe_load(job_config_content)
         logging.info(f"Loaded job config: {job_config.get('job_name', 'Unknown')}")
         
         job_name = job_config.get('job_name', 'Flexible Agent')
         logging.info(f"{job_name} - Execution")
 
-        # Create agent using job config
-        agent_config = job_config.get('agent_config', {})
-        config_path = Path(__file__).parent.parent / agent_config.get('config_path', 'config/agent/json_examples/simple_code_improvement.json')
-        logging.info("Creating agent...")
-        agent = create_agent_from_config_file(config_path)
+        # Parse agent configuration from content
+        agent_config = yaml.safe_load(agent_config_content)
+        logging.info("Creating agent from provided configuration...")
+        
+        # Create agent directly from the configuration content
+        agent = _create_agent_from_dict(agent_config)
         
         if agent is None:
             logging.error("Failed to create agent. Exiting.")
             return 1
+        
+        # Analyze structure and display readiness
+        analyze_agent_structure(agent)
+        display_agent_readiness(agent)
         
         # Collect agent execution steps
         execution_config = job_config.get('execution_config', {})
@@ -523,7 +548,18 @@ async def main_async(job_name: str = "simple_code_improvement"):
             logging.error("No input_files found in input_config. Please configure input_files with input_path and input_type.")
             return 1
         
+        # Parse template configuration and modify job_config to include it
+        template_config = yaml.safe_load(template_config_content)
+        
+        # Temporarily modify job_config to include template content instead of path
+        original_analysis_config = job_config.get('analysis_config', {}).copy()
+        job_config['analysis_config'] = job_config.get('analysis_config', {}).copy()
+        job_config['analysis_config']['template_config_content'] = template_config
+        
         results = await run_job(agent, input_files, execution_steps, job_config)
+        
+        # Restore original analysis_config
+        job_config['analysis_config'] = original_analysis_config
         
         # Display results
         report_config = job_config.get('report_config', {})
@@ -538,14 +574,65 @@ async def main_async(job_name: str = "simple_code_improvement"):
         
     except Exception as e:
         logger.error(f"\nError: {e}")
-        import traceback
+        traceback.print_exc()
+        return 1
+
+
+async def main_async(job_name: str = "simple_code_improvement"):
+    """Main async function that creates and runs the flexible agent."""
+    
+    try:
+        # Load job configuration
+        # Try YAML first, then fall back to JSON
+        yaml_path = Path(__file__).parent.parent / "config" / "job" / "yaml_examples" / f"{job_name}.yaml"
+        # json_path = Path(__file__).parent.parent / "config" / "job" / "json_examples" / f"{job_name}.json"
+        
+        if yaml_path.exists():
+            job_config_path = yaml_path
+            logging.info(f"Using YAML job config: {job_config_path}")
+        else:
+            raise FileNotFoundError(f"No job config found for '{job_name}' in YAML or JSON format")
+        
+        # Read job config content
+        with open(job_config_path, 'r') as f:
+            job_config_content = f.read()
+        
+        job_config = yaml.safe_load(job_config_content)
+        logging.info(f"Loaded job config: {job_config.get('job_name', 'Unknown')}")
+
+        # Load agent configuration content
+        agent_config = job_config.get('agent_config', {})
+        config_path = Path(__file__).parent.parent / agent_config.get('config_path', 'config/agent/json_examples/simple_code_improvement.json')
+        logging.info(f"Loading agent config from: {config_path}")
+        
+        with open(config_path, 'r') as f:
+            if str(config_path).endswith(('.yaml', '.yml')):
+                agent_config_content = f.read()
+            else:
+                # Convert JSON to YAML for consistency
+                agent_config_dict = json.load(f)
+                agent_config_content = yaml.dump(agent_config_dict)
+        
+        # Load template configuration content
+        analysis_config = job_config.get('analysis_config', {})
+        template_config_path = analysis_config.get('template_config_path')
+        template_full_path = Path(__file__).parent.parent / template_config_path
+        logging.info(f"Loading template config from: {template_full_path}")
+        
+        with open(template_full_path, 'r') as f:
+            template_config_content = f.read()
+        
+        # Call main_async_with_config with the loaded content
+        return await main_async_with_config(job_config_content, agent_config_content, template_config_content)
+
+    except Exception as e:
+        logger.error(f"\nError: {e}")
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
     # Add argparse support for command line execution
-    import argparse
     parser = argparse.ArgumentParser(description="Run the Flexible Agent with a specified job configuration.")
     parser.add_argument('--job_name', type=str, default='simple_code_improvement',
                         help='Name of the job configuration to run (default: simple_code_improvement)')
