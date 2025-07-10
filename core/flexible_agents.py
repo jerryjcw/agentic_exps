@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import sys
+import re
 import traceback
 from pathlib import Path
 from typing import Dict
@@ -29,6 +30,7 @@ from jinja2 import Template
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Local imports
+from utils.document_reader import DocumentReader
 from agent_io.agent_io import create_agent_from_config, _create_agent_from_dict
 from data_model import validate_configuration_file
 from utils import analyze_agent_structure, display_agent_readiness
@@ -76,9 +78,13 @@ def read_input_file(file_path, input_type=None, **metadata):
     if not file_path.exists():
         raise FileNotFoundError(f"Input file not found: {file_path}")
     
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
+    document_reader = DocumentReader()
+    if document_reader.is_supported(file_path):
+        content = document_reader.read_document(file_path, as_markdown=True)
+    else:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
     # Determine file type
     if input_type:
         file_type = input_type
@@ -298,6 +304,16 @@ def log_event_details(event, session):
     logging.info(f"Session state: {session.state}")
 
 
+def get_error_code_from_event(event):
+    error_code = None
+    if hasattr(event, 'content') and event.content and hasattr(event.content, 'parts') and event.content.parts and len(event.content.parts) > 0:
+        response = event.content.parts[0].text
+        # Regular expression to extract error code
+        error_code_match = re.search(r'Error code: (\d+)', response) if response else None
+        if error_code_match:
+            error_code = error_code_match.group(1)
+    return error_code
+
 
 async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionStep], job_config: dict):
     """
@@ -388,7 +404,9 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
             # Make the following paragraph a function.
             log_event_details(event, session)
 
-            author, error_code = getattr(event, 'author', 'unknown'), getattr(event, 'error_code', None)
+            author = event.author if hasattr(event, 'author') else 'unknown'
+            error_code = get_error_code_from_event(event)
+            
             if author in execution_steps:
                 step = execution_steps[author]
                 if step.status == "pending":
