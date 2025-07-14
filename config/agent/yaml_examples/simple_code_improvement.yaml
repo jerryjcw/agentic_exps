@@ -30,8 +30,6 @@ sub_agents:
           Analyze the code for security vulnerabilities, insecure patterns, and potential attack vectors. 
           Focus on input validation, authentication, authorization, data exposure, and secure coding practices. 
           Provide specific remediation recommendations with code examples where possible.
-          There are additional code files being added as input, provided below as a list of file name and content combinations. 
-          You SHOULD focus your analysis on these newly input files, and provide an overall analysis of ALL files you have seen so far.
         description: "Identifies security vulnerabilities and defensive measures"
         output_key: "security_analysis"
 
@@ -45,6 +43,8 @@ sub_agents:
           code smells, and adherence to coding standards. 
           Look for duplicated code, complex functions, unclear naming, inefficient algorithms, and opportunities for refactoring. 
           Provide specific improvement suggestions with examples."
+          There are additional code files being added as input, provided below as a list of file name and content combinations. 
+          You SHOULD focus your analysis on these newly input files, and provide an overall analysis of ALL files you have seen so far.
         description: "Identifies code quality and performance issues"
         output_key: "quality_analysis"
 

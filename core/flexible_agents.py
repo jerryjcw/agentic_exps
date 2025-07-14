@@ -105,6 +105,57 @@ def read_input_file(file_path, input_type=None, **metadata):
     return result
 
 
+def read_input_folder(folder_config, base_path=None):
+    """
+    Read all files from a folder (first level only) and return their content and metadata.
+    
+    Args:
+        folder_config (dict): Folder configuration with input_path and optional target_agent
+        base_path (Path): Base path for resolving relative paths
+        
+    Returns:
+        list: List of file data dictionaries from the folder
+    """
+    folder_path = Path(folder_config['input_path'])
+    if base_path and not folder_path.is_absolute():
+        folder_path = base_path / folder_path
+    
+    if not folder_path.exists():
+        raise FileNotFoundError(f"Input folder not found: {folder_path}")
+    
+    if not folder_path.is_dir():
+        raise ValueError(f"Input path is not a directory: {folder_path}")
+    
+    files_data = []
+    
+    # Read only first-level files (no subdirectories)
+    for file_path in folder_path.iterdir():
+        if not file_path.is_file():
+            continue
+            
+        # Skip hidden files
+        if file_path.name.startswith('.'):
+            continue
+            
+        try:
+            file_data = read_input_file(file_path, folder_config.get('input_type'))
+            # Add folder context to metadata
+            file_data['source_folder'] = str(folder_path)
+            files_data.append(file_data)
+            logging.info(f"📁 Read file from folder: {file_data['file_name']} ({file_data['file_size']} chars)")
+        except (UnicodeDecodeError, PermissionError) as e:
+            logging.warning(f"⚠️  Skipping file {file_path}: {e}")
+        except Exception as e:
+            logging.error(f"❌ Error reading file {file_path}: {e}")
+    
+    if not files_data:
+        logging.warning(f"⚠️  No files found in folder {folder_path}")
+    else:
+        logging.info(f"📂 Successfully read {len(files_data)} files from folder: {folder_path}")
+        
+    return files_data
+
+
 def append_content_to_agent_config(agent_config, target_agent_name, grouped_files):
     """
     Recursively find and append content to the target agent's instruction in the config.
@@ -569,44 +620,80 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
         # Parse agent configuration from content
         agent_config = yaml.safe_load(agent_config_content)
         
-        # Process input files and group by target agent BEFORE creating agents
+        # Process input files and folders and group by target agent BEFORE creating agents
         input_config = job_config.get('input_config', {})
         
-        if 'input_files' not in input_config:
-            logging.error("No input_files found in input_config. Please configure input_files with input_path and input_type.")
+        if 'input_files' not in input_config and 'input_folders' not in input_config:
+            logging.error("No input_files or input_folders found in input_config. Please configure at least one input source.")
             return 1
             
-        input_files_config = input_config['input_files']
         input_files = []
         targeted_files_by_agent = {}  # Group files by target agent
         
-        logging.info(f"Processing {len(input_files_config)} input files:")
+        # Process input_files if present
+        if 'input_files' in input_config:
+            input_files_config = input_config['input_files']
+            logging.info(f"Processing {len(input_files_config)} input files:")
+            
+            for i, file_config in enumerate(input_files_config, 1):
+                file_path = Path(__file__).parent.parent / file_config['input_path']
+                target_agent = file_config.get('target_agent')
+                
+                input_files.append({
+                    'path': file_path,
+                    'input_type': file_config.get('input_type'),
+                    'target_agent': target_agent
+                })
+                
+                # If this file targets a specific agent, read it and group it
+                if target_agent:
+                    try:
+                        file_data = read_input_file(file_path, file_config.get('input_type'))
+                        if target_agent not in targeted_files_by_agent:
+                            targeted_files_by_agent[target_agent] = []
+                        targeted_files_by_agent[target_agent].append(file_data)
+                        target_info = f" -> {target_agent}"
+                    except FileNotFoundError as e:
+                        logging.error(str(e))
+                        return 1
+                else:
+                    target_info = ""
+                
+                logging.info(f"  {i}. {file_path} ({file_config.get('input_type', 'auto')}){target_info}")
         
-        for i, file_config in enumerate(input_files_config, 1):
-            file_path = Path(__file__).parent.parent / file_config['input_path']
-            target_agent = file_config.get('target_agent')
+        # Process input_folders if present
+        if 'input_folders' in input_config:
+            input_folders_config = input_config['input_folders']
+            logging.info(f"Processing {len(input_folders_config)} input folders:")
             
-            input_files.append({
-                'path': file_path,
-                'input_type': file_config.get('input_type'),
-                'target_agent': target_agent
-            })
-            
-            # If this file targets a specific agent, read it and group it
-            if target_agent:
+            for i, folder_config in enumerate(input_folders_config, 1):
+                folder_path = Path(__file__).parent.parent / folder_config['input_path']
+                target_agent = folder_config.get('target_agent')
+                
                 try:
-                    file_data = read_input_file(file_path, file_config.get('input_type'))
-                    if target_agent not in targeted_files_by_agent:
-                        targeted_files_by_agent[target_agent] = []
-                    targeted_files_by_agent[target_agent].append(file_data)
-                    target_info = f" -> {target_agent}"
-                except FileNotFoundError as e:
+                    # Read all files from the folder
+                    folder_files_data = read_input_folder(folder_config, Path(__file__).parent.parent)
+                    
+                    # Add each file to the input_files list and process targeting
+                    for file_data in folder_files_data:
+                        input_files.append({
+                            'path': file_data['full_path'],
+                            'input_type': file_data['file_type'],
+                            'target_agent': target_agent
+                        })
+                        
+                        # If this folder targets a specific agent, group all its files
+                        if target_agent:
+                            if target_agent not in targeted_files_by_agent:
+                                targeted_files_by_agent[target_agent] = []
+                            targeted_files_by_agent[target_agent].append(file_data)
+                    
+                    target_info = f" -> {target_agent}" if target_agent else ""
+                    logging.info(f"  {i}. {folder_path} ({len(folder_files_data)} files){target_info}")
+                    
+                except (FileNotFoundError, ValueError) as e:
                     logging.error(str(e))
                     return 1
-            else:
-                target_info = ""
-            
-            logging.info(f"  {i}. {file_path} ({file_config.get('input_type', 'auto')}){target_info}")
         
         # Modify agent configuration to include targeted file content
         if targeted_files_by_agent:
