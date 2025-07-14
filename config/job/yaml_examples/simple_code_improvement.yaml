@@ -13,12 +13,14 @@ agent_config:
   config_type: "file"
 
 input_config:
-  # Support for multiple input files
+  # Support for multiple input files with optional target_agent routing
   input_files:
     - input_path: "agent_io/agent_io.py"
       input_type: "text"
+      # target_agent: "SecurityAnalyzer"  # Uncomment to send this file directly to SecurityAnalyzer
     - input_path: "core/flexible_agents.py"
       input_type: "text"
+      # target_agent: "QualityAnalyzer"   # Uncomment to send this file directly to QualityAnalyzer
   
   # Global input settings
   preview_length: 500

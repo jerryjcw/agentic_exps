@@ -105,6 +105,55 @@ def read_input_file(file_path, input_type=None, **metadata):
     return result
 
 
+def append_content_to_agent_config(agent_config, target_agent_name, grouped_files):
+    """
+    Recursively find and append content to the target agent's instruction in the config.
+    
+    Args:
+        agent_config: The agent configuration dictionary
+        target_agent_name: Name of the target agent to append content to
+        grouped_files: List of file data dictionaries for this target agent
+        
+    Returns:
+        bool: True if target agent was found and content appended, False otherwise
+    """
+    def _append_to_agent_config(current_config):
+        if current_config.get('name') == target_agent_name:
+            # Found the target agent, append content to its instruction
+            current_instruction = current_config.get('instruction', '') or ''
+            
+            # Create grouped content with prefix
+            file_names = [f['file_name'] for f in grouped_files]
+            additional_content = f"\n\nFocus on the content from the following files: {', '.join(file_names)}\n"
+            
+            for file_data in grouped_files:
+                additional_content += f"\n--- Content from {file_data['file_name']} ---\n"
+                
+                # Use a more aggressive approach: replace all curly braces with HTML entities
+                # This completely prevents any template interpretation
+                escaped_content = file_data['file_content']
+                escaped_content = escaped_content.replace('{', '&#123;').replace('}', '&#125;')
+                escaped_content = escaped_content.replace('[', '&#91;').replace(']', '&#93;')
+                
+                # Wrap in code block with explicit language tag
+                additional_content += f"\n```python\n{escaped_content}\n```\n"
+                additional_content += f"\n--- End of {file_data['file_name']} ---\n"
+            
+            current_config['instruction'] = current_instruction + additional_content
+            logging.info(f"📎 Appended content from {len(grouped_files)} file(s) to agent config '{target_agent_name}'")
+            return True
+        
+        # If this is a composite agent, search sub_agents
+        if 'sub_agents' in current_config and current_config['sub_agents']:
+            for sub_agent_config in current_config['sub_agents']:
+                if _append_to_agent_config(sub_agent_config):
+                    return True
+        
+        return False
+    
+    return _append_to_agent_config(agent_config)
+
+
 def synthesize_user_query_jinja2(template_config, file_names, file_types, file_contents):
     """
     Synthesize user query using Jinja2 template.
@@ -279,7 +328,7 @@ async def run_agent(agent, user_query, job_config: dict):
 
         message = types.Content(role="user", parts=[{"text": user_query}])
         
-        print(f"\n🤖 Starting code improvement analysis...")
+        print(f"\n🤖 Starting task analysis...")
         print("This may take several minutes as the workflow processes through all agents...")
         print("-" * 60)
         
@@ -333,9 +382,9 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
     
     # Handle input files structure
     input_files_data = []
-    file_names = []
-    file_types = []
-    file_contents = []
+    file_names = []  # Only non-targeted files for Jinja2
+    file_types = []  # Only non-targeted files for Jinja2
+    file_contents = []  # Only non-targeted files for Jinja2
     
     # Support different input formats
     if isinstance(input_file_paths, str):
@@ -354,18 +403,27 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
         try:
             file_path = file_info['path']
             input_type = file_info.get('input_type')
+            target_agent = file_info.get('target_agent')
             
             file_data = read_input_file(file_path, input_type)
             input_files_data.append(file_data)
-            file_names.append(file_data['file_name'])
-            file_types.append(file_data['file_type'])
-            file_contents.append(file_data['file_content'])
+            
+            if target_agent:
+                # This file was already processed and added to agent config - skip for Jinja2
+                logging.info(f"📌 File '{file_data['file_name']}' was targeted to agent '{target_agent}' (processed earlier)")
+            else:
+                # This file goes to the general user query via Jinja2
+                file_names.append(file_data['file_name'])
+                file_types.append(file_data['file_type'])
+                file_contents.append(file_data['file_content'])
+                logging.info(f"📄 File '{file_data['file_name']}' will be processed via Jinja2 template")
+                
         except FileNotFoundError as e:
             logging.error(str(e))
             return None
     
     # Display input information
-    logging.info(f"Running agent with {len(input_files_data)} input file(s)")
+    logging.info(f"Running agent with {len(input_files_data)} total file(s) ({len(file_names)} for Jinja2)")
     total_size = sum(data['file_size'] for data in input_files_data)
     
     for i, file_data in enumerate(input_files_data, 1):
@@ -388,10 +446,16 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
         template_full_path = Path(__file__).parent.parent / template_config_path
         template_config = load_template_config(template_full_path)
     
-    user_query = synthesize_user_query_jinja2(
-        template_config, file_names, file_types, file_contents
-    )
-    logging.info(f"Synthesized query using Jinja2: {len(user_query)} characters")
+    # Create analysis request using Jinja2 template synthesis (only for non-targeted files)
+    if file_names:  # Only synthesize if there are non-targeted files
+        user_query = synthesize_user_query_jinja2(
+            template_config, file_names, file_types, file_contents
+        )
+        logging.info(f"Synthesized query using Jinja2: {len(user_query)} characters")
+    else:
+        # All files are targeted to specific agents, create a basic query
+        user_query = "Please analyze the provided content and generate your report."
+        logging.info("All files are targeted to specific agents, using basic query")
 
     try:
         response_generator, session = await run_agent(agent, user_query, job_config)
@@ -504,9 +568,57 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
 
         # Parse agent configuration from content
         agent_config = yaml.safe_load(agent_config_content)
+        
+        # Process input files and group by target agent BEFORE creating agents
+        input_config = job_config.get('input_config', {})
+        
+        if 'input_files' not in input_config:
+            logging.error("No input_files found in input_config. Please configure input_files with input_path and input_type.")
+            return 1
+            
+        input_files_config = input_config['input_files']
+        input_files = []
+        targeted_files_by_agent = {}  # Group files by target agent
+        
+        logging.info(f"Processing {len(input_files_config)} input files:")
+        
+        for i, file_config in enumerate(input_files_config, 1):
+            file_path = Path(__file__).parent.parent / file_config['input_path']
+            target_agent = file_config.get('target_agent')
+            
+            input_files.append({
+                'path': file_path,
+                'input_type': file_config.get('input_type'),
+                'target_agent': target_agent
+            })
+            
+            # If this file targets a specific agent, read it and group it
+            if target_agent:
+                try:
+                    file_data = read_input_file(file_path, file_config.get('input_type'))
+                    if target_agent not in targeted_files_by_agent:
+                        targeted_files_by_agent[target_agent] = []
+                    targeted_files_by_agent[target_agent].append(file_data)
+                    target_info = f" -> {target_agent}"
+                except FileNotFoundError as e:
+                    logging.error(str(e))
+                    return 1
+            else:
+                target_info = ""
+            
+            logging.info(f"  {i}. {file_path} ({file_config.get('input_type', 'auto')}){target_info}")
+        
+        # Modify agent configuration to include targeted file content
+        if targeted_files_by_agent:
+            logging.info(f"Modifying agent configuration for {len(targeted_files_by_agent)} targeted agent(s)...")
+            for target_agent, files in targeted_files_by_agent.items():
+                success = append_content_to_agent_config(agent_config, target_agent, files)
+                if not success:
+                    logging.warning(f"⚠️  Could not find target agent '{target_agent}' in configuration")
+        
         logging.info("Creating agent from provided configuration...")
         
-        # Create agent directly from the configuration content
+        # Create agent from the modified configuration
         agent = _create_agent_from_dict(agent_config)
         
         if agent is None:
@@ -527,26 +639,6 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
                 display_execution_steps_summary(execution_steps)
         else:
             execution_steps = {}
-        
-        # Run agent analysis using job config
-        input_config = job_config.get('input_config', {})
-        
-        # Handle input_files structure with input_path and input_type
-        if 'input_files' in input_config:
-            input_files_config = input_config['input_files']
-            input_files = []
-            
-            logging.info(f"Executing agent on {len(input_files_config)} files:")
-            for i, file_config in enumerate(input_files_config, 1):
-                file_path = Path(__file__).parent.parent / file_config['input_path']
-                input_files.append({
-                    'path': file_path,
-                    'input_type': file_config.get('input_type')
-                })
-                logging.info(f"  {i}. {file_path} ({file_config.get('input_type', 'auto')})")
-        else:
-            logging.error("No input_files found in input_config. Please configure input_files with input_path and input_type.")
-            return 1
         
         # Parse template configuration and modify job_config to include it
         template_config = yaml.safe_load(template_config_content)
