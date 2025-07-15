@@ -14,18 +14,20 @@ agent_config:
 
 input_config:
   # Support for multiple input files with optional target_agent routing
+  # target_agent can be a single string or a list of strings for multiple agents
   input_files:
     - input_path: "core/gpt_caller.py"
       input_type: "text"
-    # target_agent: "SecurityAnalyzer"  # Uncomment to send this file directly to SecurityAnalyzer
+      target_agent: ["SecurityAnalyzer", "QualityAnalyzer"]  # Send to multiple agents
     # - input_path: "core/flexible_agents.py"
     #   input_type: "text"
-    #   target_agent: "QualityAnalyzer"   # Uncomment to send this file directly to QualityAnalyzer
+    #   target_agent: "QualityAnalyzer"   # Send to single agent
   
   # Support for input folders - reads all first-level files in the folder
+  # target_agent can be a single string or a list of strings for multiple agents
   input_folders:
     - input_path: "tests/resources/folder_test"
-      target_agent: "QualityAnalyzer"  # Uncomment to send all files in this folder to DocumentationAnalyzer
+      target_agent: ["QualityAnalyzer", "SecurityAnalyzer"]  # Send all files to multiple agents
   
   # Global input settings
   preview_length: 500

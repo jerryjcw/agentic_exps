@@ -158,18 +158,28 @@ class WorkflowConfiguration:
                 file_path = self.base_path / file_config['input_path']
                 target_agent = file_config.get('target_agent')
                 
+                # Convert target_agent to list format for consistent processing
+                if target_agent:
+                    if isinstance(target_agent, list):
+                        target_agents = target_agent
+                    else:
+                        target_agents = [target_agent]
+                else:
+                    target_agents = []
+                
                 self.input_files.append({
                     'path': file_path,
                     'input_type': file_config.get('input_type'),
-                    'target_agent': target_agent
+                    'target_agents': target_agents
                 })
                 
-                # If this file targets a specific agent, read it and group it
-                if target_agent:
+                # If this file targets specific agents, read it and group it for each agent
+                if target_agents:
                     file_data = self.read_input_file(file_path, file_config.get('input_type'))
-                    if target_agent not in self.targeted_files_by_agent:
-                        self.targeted_files_by_agent[target_agent] = []
-                    self.targeted_files_by_agent[target_agent].append(file_data)
+                    for agent in target_agents:
+                        if agent not in self.targeted_files_by_agent:
+                            self.targeted_files_by_agent[agent] = []
+                        self.targeted_files_by_agent[agent].append(file_data)
         
         # Process input_folders if present
         if 'input_folders' in input_config:
@@ -178,19 +188,30 @@ class WorkflowConfiguration:
             for folder_config in input_folders_config:
                 target_agent = folder_config.get('target_agent')
                 
+                # Convert target_agent to list format for consistent processing
+                if target_agent:
+                    if isinstance(target_agent, list):
+                        target_agents = target_agent
+                    else:
+                        target_agents = [target_agent]
+                else:
+                    target_agents = []
+                
                 folder_files_data = self.read_input_folder(folder_config)
                 
                 for file_data in folder_files_data:
                     self.input_files.append({
                         'path': file_data['full_path'],
                         'input_type': file_data['file_type'],
-                        'target_agent': target_agent
+                        'target_agents': target_agents
                     })
                     
-                    if target_agent:
-                        if target_agent not in self.targeted_files_by_agent:
-                            self.targeted_files_by_agent[target_agent] = []
-                        self.targeted_files_by_agent[target_agent].append(file_data)
+                    # If this folder targets specific agents, assign each file to those agents
+                    if target_agents:
+                        for agent in target_agents:
+                            if agent not in self.targeted_files_by_agent:
+                                self.targeted_files_by_agent[agent] = []
+                            self.targeted_files_by_agent[agent].append(file_data)
         
         return self.input_files, self.targeted_files_by_agent
     

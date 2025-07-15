@@ -150,14 +150,15 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
         try:
             file_path = file_info['path']
             input_type = file_info.get('input_type')
-            target_agent = file_info.get('target_agent')
+            target_agents = file_info.get('target_agents', [])
             
             file_data = workflow_config.read_input_file(Path(file_path), input_type)
             input_files_data.append(file_data)
             
-            if target_agent:
+            if target_agents:
                 # This file was already processed and added to agent config - skip for Jinja2
-                logging.info(f"📌 File '{file_data['file_name']}' was targeted to agent '{target_agent}' (processed earlier)")
+                agent_names = ", ".join(target_agents)
+                logging.info(f"📌 File '{file_data['file_name']}' was targeted to agent(s) '{agent_names}' (processed earlier)")
             else:
                 # This file goes to the general user query via Jinja2
                 file_names.append(file_data['file_name'])
