@@ -342,12 +342,12 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
         
         logging.info("Agent execution completed successfully!")
 
-        return 0
+        return 0, results
         
     except Exception as e:
         logger.error(f"\nError: {e}")
         traceback.print_exc()
-        return 1
+        return 1, {'Exception': str(e), "error_message": traceback.format_exc()}
 
 
 async def main_async(job_name: str = "simple_code_improvement"):
@@ -403,7 +403,7 @@ async def main_async(job_name: str = "simple_code_improvement"):
     except Exception as e:
         logger.error(f"\nError: {e}")
         traceback.print_exc()
-        return 1
+        return 1, {'Exception': str(e), "error_message": traceback.format_exc()}
 
 
 if __name__ == "__main__":

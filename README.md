@@ -6,6 +6,11 @@ A comprehensive framework for building and experimenting with intelligent agents
 
 ```
 agentic_exps/
+├── api/                        # FastAPI server components
+│   ├── main.py                 # FastAPI server
+│   ├── models.py               # Pydantic request/response models
+│   ├── example_client.py       # Example API client
+│   └── run_example.py          # Complete example runner
 ├── core/                       # Core framework components
 │   ├── flexible_agents.py      # Main flexible agent framework
 │   ├── agent.py                # Agent utilities
@@ -31,6 +36,13 @@ agentic_exps/
 - **Configurable Workflows**: YAML/JSON configuration for agent behavior
 - **Execution Tracking**: Comprehensive step-by-step execution monitoring
 - **Multiple Output Formats**: Text and JSON output with detailed metadata
+
+### API Server
+- **FastAPI Server**: RESTful API for running flexible agent workflows
+- **Real-time Execution**: Run workflows via HTTP POST requests
+- **Complete Results**: Returns full execution results, output files, and metadata
+- **Interactive Documentation**: Built-in Swagger UI and OpenAPI spec
+- **Health Monitoring**: Health check endpoints for service monitoring
 
 ### LLM Integrations
 - **Google ADK Integration**: Native Google Agent Development Kit support
@@ -69,12 +81,19 @@ agentic_exps/
 
 ### Basic Usage
 
-1. **Run a flexible agent workflow**:
+1. **Run a flexible agent workflow (CLI)**:
    ```bash
    python core/flexible_agents.py --job_name simple_code_improvement
    ```
 
-2. **Run tests**:
+2. **Run the API server**:
+   ```bash
+   cd api
+   python main.py
+   ```
+   The server will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`
+
+3. **Run tests**:
    ```bash
    python -m unittest discover tests
    ```
@@ -178,7 +197,7 @@ template_content: |
 
 ## 🔍 Examples
 
-### Process Multiple Files
+### Process Multiple Files (CLI)
 ```python
 from core.flexible_agents import main_async
 
@@ -190,6 +209,51 @@ input_files = [
 
 # Run agent workflow
 await main_async("my_workflow")
+```
+
+### API Usage Example
+```python
+import requests
+
+# Example configuration contents
+job_config = """
+job_name: "SimpleCodeImprovementAnalysis"
+input_config:
+  input_files:
+    - input_path: "core/gpt_caller.py"
+      input_type: "text"
+# ... rest of job config
+"""
+
+agent_config = """
+name: "SimpleCodeImprovementWorkflow"
+class: "SequentialAgent"
+sub_agents:
+  - name: "CodeAnalysisAgent"
+    model: "openai/gpt-4o"
+# ... rest of agent config
+"""
+
+template_config = """
+template_content: |
+  Please analyze the following code for improvements:
+  # ... rest of template config
+"""
+
+# Call the API
+response = requests.post(
+    "http://localhost:8000/workflow/run",
+    json={
+        "job_config": job_config,
+        "agent_config": agent_config,
+        "template_config": template_config
+    }
+)
+
+result = response.json()
+print(f"Status: {result['status']}")
+print(f"Output file: {result['output_file']}")
+print(f"Events generated: {result['events_generated']}")
 ```
 
 ### Custom Agent with Tools
@@ -219,6 +283,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🚀 Recent Updates
 
+- **FastAPI Server**: Added REST API server for running workflows via HTTP
+- **Enhanced Results**: Improved return values with complete execution results
+- **API Documentation**: Integrated API documentation with examples
 - **v2.0**: Renamed `basics/` to `core/` for better organization
 - **Multi-file Support**: Added support for processing multiple input files
 - **Template Engine**: Enhanced Jinja2 template system for dynamic queries
