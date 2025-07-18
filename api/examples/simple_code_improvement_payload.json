@@ -27,7 +27,7 @@
       ],
       "input_folders": [
         {
-          "input_path": "tests/resources/folder_test",
+          "input_path": "/Users/jerry/Documents/Prior Salaries/Meta Salary",
           "target_agent": [
             "QualityAnalyzer",
             "SecurityAnalyzer"

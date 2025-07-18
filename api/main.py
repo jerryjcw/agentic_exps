@@ -4,6 +4,9 @@ import os
 import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+# import uuid generator
+import uuid
+
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -54,7 +57,8 @@ async def run_workflow(request: WorkflowRequest):
         exit_code, results = await main_async_with_config(
             job_config_content=job_config_yaml,
             agent_config_content=agent_config_yaml,
-            template_config_content=template_config_yaml
+            template_config_content=template_config_yaml,
+            uuid=str(uuid.uuid4())
         )
         
         if exit_code == 0:
@@ -105,4 +109,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, workers=4)

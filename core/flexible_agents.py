@@ -275,7 +275,7 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
         return None
 
 
-async def main_async_with_config(job_config_content: str, agent_config_content: str, template_config_content: str):
+async def main_async_with_config(job_config_content: str, agent_config_content: str, template_config_content: str, uuid: str = ""):
     """
     Main async function that creates and runs the flexible agent using YAML content directly.
     
@@ -298,8 +298,8 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
         workflow_config.load_template_config_from_content(template_config_content)
         
         job_name = workflow_config.job_config.get('job_name', 'Flexible Agent')
-        logging.info(f"Loaded job config: {workflow_config.job_config.get('job_name', 'Unknown')}")
-        logging.info(f"{job_name} - Execution")
+        logging.info(f"[{uuid}] Loaded job config: {workflow_config.job_config.get('job_name', 'Unknown')}")
+        logging.info(f"[{uuid}] {job_name} - Execution")
         
         # Process input files and folders using WorkflowConfiguration
         try:
@@ -332,7 +332,7 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
             execution_steps = {}
         
         results = await run_job(agent, input_files, execution_steps, workflow_config)
-        
+
         # Display results
         report_config = workflow_config.get_report_config()
         if results and report_config.get('display_results_summary', True):
@@ -340,12 +340,12 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
             if execution_config.get('track_execution_steps', True):
                 report_finished_steps(execution_steps)
         
-        logging.info("Agent execution completed successfully!")
+        logging.info("[{uuid}] Agent execution completed successfully!")
 
         return 0, results
         
     except Exception as e:
-        logger.error(f"\nError: {e}")
+        logger.error(f"\n[{uuid}] Error: {e}")
         traceback.print_exc()
         return 1, {'Exception': str(e), "error_message": traceback.format_exc()}
 
