@@ -1,0 +1,477 @@
+# Optimizer Prompts Configuration
+# All prompts used by critic, suggester, and updater components
+
+critic:
+  evaluation:
+    main_evaluation: |
+      You are an expert evaluator. Compare the actual output against the expected output and provide a comprehensive evaluation.
+
+      EXPECTED OUTPUT:
+      {expected}
+
+      ACTUAL OUTPUT:
+      {actual}
+
+      {traces_info}
+
+      Please evaluate based on the objective: {objective}
+
+      Provide your evaluation in this EXACT JSON format:
+      {{
+          "score": 0.8,
+          "global_feedback": "Overall assessment of how well the actual output matches the expected output",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "specific issue identified",
+                  "evidence": "supporting evidence for the issue"
+              }}
+          ]
+      }}
+
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+    accuracy: |
+      You are an expert evaluator assessing the accuracy of AI agent outputs. Compare the actual output against the expected output and provide a comprehensive evaluation.
+
+      EXPECTED OUTPUT:
+      {expected_output}
+
+      ACTUAL OUTPUT:
+      {actual_output}
+
+      {traces_info}
+
+      ACCURACY EVALUATION FOCUS:
+      Focus especially on factual accuracy, correctness, and completeness. Pay particular attention to:
+      - Factual correctness and precision of information
+      - Completeness of required content elements
+      - Accuracy of data, numbers, and specific claims
+      - Correctness of technical information and procedures
+      - Alignment with factual expectations in the expected output
+
+      Provide your evaluation in this EXACT JSON format:
+      {{
+          "score": 0.8,
+          "global_feedback": "Overall assessment of how well the actual output matches the expected output",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "specific issue identified",
+                  "evidence": "supporting evidence for the issue"
+              }}
+          ]
+      }}
+
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+    fluency: |
+      You are an expert evaluator assessing the fluency and readability of AI agent outputs. Compare the actual output against the expected output and provide a comprehensive evaluation.
+
+      EXPECTED OUTPUT:
+      {expected_output}
+
+      ACTUAL OUTPUT:
+      {actual_output}
+
+      {traces_info}
+
+      FLUENCY EVALUATION FOCUS:
+      Focus especially on language fluency, readability, and communication quality. Pay particular attention to:
+      - Natural language flow and coherence
+      - Clarity and readability of content
+      - Grammar, syntax, and style quality
+      - Logical organization and structure
+      - Effective communication of ideas and information
+
+      Provide your evaluation in this EXACT JSON format:
+      {{
+          "score": 0.8,
+          "global_feedback": "Overall assessment of how well the actual output matches the expected output",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "specific issue identified",
+                  "evidence": "supporting evidence for the issue"
+              }}
+          ]
+      }}
+
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+    factuality: |
+      You are an expert evaluator assessing the factual accuracy of AI agent outputs. Compare the actual output against the expected output and provide a comprehensive evaluation.
+
+      EXPECTED OUTPUT:
+      {expected_output}
+
+      ACTUAL OUTPUT:
+      {actual_output}
+
+      {traces_info}
+
+      FACTUALITY EVALUATION FOCUS:
+      Focus especially on factual accuracy and verifiable information. Pay particular attention to:
+      - Factual correctness and verifiable claims
+      - Logical consistency and coherence
+      - Absence of hallucinations or false information
+      - Accuracy of specific details, numbers, and data
+      - Reliability and trustworthiness of presented information
+
+      Provide your evaluation in this EXACT JSON format:
+      {{
+          "score": 0.8,
+          "global_feedback": "Overall assessment of how well the actual output matches the expected output",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "specific issue identified",
+                  "evidence": "supporting evidence for the issue"
+              }}
+          ]
+      }}
+
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+    instruction_following: |
+      You are an expert evaluator assessing how well AI agents follow instructions. Compare the actual output against the expected output and provide a comprehensive evaluation.
+
+      EXPECTED OUTPUT:
+      {expected_output}
+
+      ACTUAL OUTPUT:
+      {actual_output}
+
+      {traces_info}
+
+      INSTRUCTION-FOLLOWING EVALUATION FOCUS:
+      Focus especially on adherence to instructions and task completion. Pay particular attention to:
+      - Adherence to given instructions and directives
+      - Completeness of all required tasks and deliverables
+      - Format compliance and structural requirements
+      - Addressing all specified requirements and criteria
+      - Following procedural steps and methodological guidelines
+
+      Provide your evaluation in this EXACT JSON format:
+      {{
+          "score": 0.8,
+          "global_feedback": "Overall assessment of how well the actual output matches the expected output",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "specific issue identified",
+                  "evidence": "supporting evidence for the issue"
+              }}
+          ]
+      }}
+
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+  system_messages:
+    default: "You are an expert output evaluator. Provide precise, actionable feedback in the requested JSON format."
+
+suggester:
+  generation:
+    accuracy: |
+      You are an expert prompt engineer specializing in improving AI agent accuracy.
+
+      Current Agent Prompts:
+      {current_prompts}
+
+      Global Feedback:
+      {global_feedback}
+
+      Current Score: {score}
+      Expected Output: {expected_output}
+
+      Generate specific suggestions to improve the accuracy of these agent prompts.
+      Focus on:
+      1. Factual correctness
+      2. Precision of instructions
+      3. Clarity of requirements
+      4. Verification steps
+
+      Return suggestions in this EXACT JSON format:
+      [
+          {{
+              "agent_id": "agent_name",
+              "new_prompt": "improved prompt text",
+              "reason": "explanation of improvement",
+              "confidence": 0.8
+          }}
+      ]
+
+    fluency: |
+      You are an expert prompt engineer specializing in improving AI agent fluency.
+
+      Current Agent Prompts:
+      {current_prompts}
+
+      Global Feedback:
+      {global_feedback}
+
+      Current Score: {score}
+      Expected Output: {expected_output}
+
+      Generate specific suggestions to improve the fluency and readability of agent outputs.
+      Focus on:
+      1. Natural language flow
+      2. Clarity and readability
+      3. Coherence and structure
+      4. Writing style improvements
+
+      Return suggestions in this EXACT JSON format:
+      [
+          {{
+              "agent_id": "agent_name",
+              "new_prompt": "improved prompt text",
+              "reason": "explanation of improvement",
+              "confidence": 0.8
+          }}
+      ]
+
+    factuality: |
+      You are an expert prompt engineer specializing in improving AI agent factuality.
+
+      Current Agent Prompts:
+      {current_prompts}
+
+      Global Feedback:
+      {global_feedback}
+
+      Current Score: {score}
+      Expected Output: {expected_output}
+
+      Generate specific suggestions to improve the factual accuracy of agent outputs.
+      Focus on:
+      1. Fact verification requirements
+      2. Source citation instructions
+      3. Uncertainty acknowledgment
+      4. Avoiding hallucinations
+
+      Return suggestions in this EXACT JSON format:
+      [
+          {{
+              "agent_id": "agent_name",
+              "new_prompt": "improved prompt text",
+              "reason": "explanation of improvement",
+              "confidence": 0.8
+          }}
+      ]
+
+    instruction_following: |
+      You are an expert prompt engineer specializing in improving AI agent instruction following.
+
+      Current Agent Prompts:
+      {current_prompts}
+
+      Global Feedback:
+      {global_feedback}
+
+      Current Score: {score}
+      Expected Output: {expected_output}
+
+      Generate specific suggestions to improve how well agents follow instructions.
+      Focus on:
+      1. Clear task specification
+      2. Step-by-step instructions
+      3. Output format requirements
+      4. Completeness checks
+
+      Return suggestions in this EXACT JSON format:
+      [
+          {{
+              "agent_id": "agent_name",
+              "new_prompt": "improved prompt text",
+              "reason": "explanation of improvement",
+              "confidence": 0.8
+          }}
+      ]
+
+    feedback_aggregation: |
+      You are an expert analyst tasked with aggregating feedback from multiple input-output evaluation pairs.
+
+      NUMBER OF PAIRS EVALUATED: {num_pairs}
+
+      INDIVIDUAL PAIR EVALUATIONS:
+      {pair_summaries}
+
+      CURRENT AGENT PROMPTS:
+      {current_prompts}
+
+      OPTIMIZATION OBJECTIVE: {objective}
+
+      Your task is to analyze all the individual evaluations and synthesize the feedback into actionable insights for prompt improvement. Look for:
+      1. Common patterns and issues across multiple pairs
+      2. Agent-specific problems that appear consistently
+      3. Global issues affecting the overall workflow
+      4. Priority areas for improvement based on frequency and impact
+
+      Provide your aggregated analysis in this EXACT JSON format:
+      {{
+          "global_feedback": "Comprehensive analysis of patterns and issues across all pairs",
+          "agent_feedback": [
+              {{
+                  "agent_id": "specific_agent_name",
+                  "issue": "summarized issue affecting this agent across pairs",
+                  "evidence": "supporting evidence from multiple pairs"
+              }}
+          ]
+      }}
+
+      Focus on:
+      - Identifying consistent problems that appear across multiple pairs
+      - Synthesizing specific, actionable feedback for each agent
+      - Prioritizing issues based on their frequency and impact on the objective
+      - Providing clear evidence for each identified issue
+
+  system_messages:
+    default: |
+      You are an expert prompt engineer. Analyze the current agent prompts and evaluation feedback to generate specific improvements.
+
+      IMPORTANT: Return your response as a valid JSON array with this EXACT format:
+      [
+          {{
+              "agent_id": "exact_agent_name_from_input",
+              "new_prompt": "complete improved prompt text",
+              "reason": "specific explanation of what was improved and why",
+              "confidence": 0.8
+          }}
+      ]
+
+      Guidelines:
+      - Make specific, actionable improvements based on the feedback
+      - Keep the core intent of each agent but enhance clarity, specificity, and effectiveness
+      - Address issues mentioned in the global feedback
+      - Do not just add generic phrases like "be more detailed"
+      - Consider the expected output format when improving prompts
+      - Confidence should be between 0.5 and 1.0
+
+    aggregation: |
+      You are an expert analyst specializing in feedback aggregation and pattern recognition. Your task is to analyze multiple evaluation results and synthesize them into coherent, actionable insights.
+
+      Focus on:
+      - Identifying recurring patterns and common issues
+      - Synthesizing feedback into clear, specific recommendations
+      - Prioritizing issues based on frequency and impact
+      - Providing evidence-based analysis
+
+      Always return valid JSON in the exact format requested.
+
+  improvements:
+    accuracy_additions:
+      - "Ensure all information is factually accurate and verifiable."
+      - "Double-check your response for correctness before providing output."
+      - "If uncertain about any facts, clearly state your uncertainty."
+      - "Provide specific examples and evidence to support your claims."
+
+    detail_additions:
+      - "Provide comprehensive and detailed analysis."
+      - "Include specific examples and supporting evidence."
+      - "Ensure all relevant aspects are covered thoroughly."
+      - "Expand on key points with additional context and explanation."
+
+    format_additions:
+      - "Structure your response with clear sections and headings."
+      - "Use appropriate formatting (bullet points, numbered lists, etc.)."
+      - "Ensure logical flow and organization of information."
+      - "Include summary sections where appropriate."
+
+    context_additions:
+      - "Carefully analyze the full context of the request."
+      - "Consider the broader implications and connections."
+      - "Reference relevant background information."
+      - "Ensure your response addresses the specific context provided."
+
+    error_handling: |
+      ERROR HANDLING:
+      - If you encounter any errors or uncertainties, clearly state them.
+      - Provide alternative approaches when the primary method fails.
+      - Continue with partial results rather than failing completely.
+
+    output_length: |
+      OUTPUT REQUIREMENTS:
+      - Provide comprehensive and detailed responses.
+      - Include specific examples and explanations.
+      - Ensure your output is substantial and informative.
+      - Aim for thorough coverage of the topic.
+
+templates:
+  json_response_format: |
+    {{
+        "score": 0.8,
+        "global_feedback": "explanation of evaluation",
+        "agent_feedback": [
+            {{
+                "agent_id": "agent_name",
+                "issue": "specific issue",
+                "evidence": "supporting evidence",
+                "suggested_fix": "optional suggestion"
+            }}
+        ]
+    }}
+
+  suggestion_format: |
+    [
+        {{
+            "agent_id": "agent_name",
+            "new_prompt": "improved prompt text",
+            "reason": "explanation of improvement",
+            "confidence": 0.8
+        }}
+    ]
+
+  common_instructions:
+    evaluation_guidelines: |
+      Instructions:
+      - Score should be between 0.0 and 1.0 (1.0 = perfect match)
+      - Global feedback should explain the overall quality and alignment
+      - Agent feedback should identify specific issues with individual agents if detectable, 
+        the feedback should focus on the specific area or function that the individual agent is specialized for, 
+        the name of an agent suggests that.
+      - Focus on content accuracy, completeness, structure, and alignment with expected output
+      - Be specific and actionable in your feedback
+
+    suggestion_guidelines: |
+      Guidelines:
+      - Make specific, actionable improvements based on the feedback
+      - Keep the core intent of each agent but enhance clarity, specificity, and effectiveness
+      - Address issues mentioned in the global feedback
+      - Do not just add generic phrases like "be more detailed"
+      - Consider the expected output format when improving prompts
+      - Confidence should be between 0.5 and 1.0

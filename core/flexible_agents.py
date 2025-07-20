@@ -183,16 +183,7 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
     analysis_config = workflow_config.job_config.get('analysis_config', {})
     
     # Load template config - either from content or from file path
-    if 'template_config_content' in analysis_config:
-        # Use template content directly
-        template_config = analysis_config['template_config_content']
-        logging.info("Using template config provided as content")
-    else:
-        # Load and synthesize template using Jinja2
-        template_config_path = analysis_config.get('template_config_path')
-        logging.info(f"Using template config path from job config: {template_config_path}")
-        template_full_path = Path(__file__).parent.parent / template_config_path
-        template_config = workflow_config.load_template_config(template_full_path)
+    template_config = workflow_config.template_config
     
     # Create analysis request using Jinja2 template synthesis (only for non-targeted files)
     if file_names:  # Only synthesize if there are non-targeted files
