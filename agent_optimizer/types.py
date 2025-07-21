@@ -8,6 +8,16 @@ from enum import Enum
 import json
 
 
+class LLMServiceError(Exception):
+    """Raised when LLM service fails due to service issues or invalid response format."""
+    
+    def __init__(self, message: str, error_type: str, original_response: Optional[str] = None):
+        self.message = message
+        self.error_type = error_type  # "service_error", "format_error", "parsing_error"
+        self.original_response = original_response
+        super().__init__(message)
+
+
 class OptimizationObjective(Enum):
     """Optimization objectives for the agent workflow."""
     ACCURACY = "accuracy"
@@ -83,6 +93,7 @@ class OptimizationIteration:
     critic_response: Optional[str] = None
     suggester_response: Optional[str] = None
     generated_suggestions: List[PromptSuggestion] = field(default_factory=list)
+    current_prompts: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -95,6 +106,7 @@ class OptimizationConfig:
     plateau_threshold: float = 0.01
     plateau_patience: int = 3
     aggregation_strategy: AggregationStrategy = AggregationStrategy.AVERAGE
+    max_llm_retries_per_iteration: int = 3
 
 
 @dataclass
@@ -108,6 +120,9 @@ class OptimizationResult:
     termination_reason: str = ""
     baseline_score: Optional[float] = None
     baseline_evaluation: Optional[EvaluationResult] = None
+    llm_failure_count: int = 0
+    llm_service_errors: int = 0
+    llm_format_errors: int = 0
 
 
 @dataclass

@@ -56,7 +56,7 @@
         "class": "Agent",
         "module": "google.adk.agents",
         "model": "openai/gpt-4o",
-        "instruction": "Don't do anything, just echo the input.",
+        "instruction": "You MUST not do any additional analysis or modifications, just repeat the file content listed as follows:",
         "description": "Analyzes code structure and provides architectural overview",
         "output_key": "code_analysis"
       },
@@ -71,7 +71,7 @@
             "class": "Agent",
             "module": "google.adk.agents",
             "model": "openai/gpt-4o",
-            "instruction": "Don't do anything, just echo the input.",
+            "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
             "description": "Identifies security vulnerabilities and defensive measures",
             "output_key": "security_analysis"
           },
@@ -80,7 +80,7 @@
             "class": "Agent",
             "module": "google.adk.agents",
             "model": "openai/gpt-4o",
-            "instruction": "Don't do anything, just echo the input.",
+            "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
             "description": "Identifies code quality and performance issues",
             "output_key": "quality_analysis"
           }
@@ -91,7 +91,7 @@
         "class": "Agent",
         "module": "google.adk.agents",
         "model": "openai/gpt-4o",
-        "instruction": "Echo the input twice, don't do anything else.",
+        "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
         "description": "Synthesizes and prioritizes improvement recommendations",
         "output_key": "improvement_recommendations"
       }

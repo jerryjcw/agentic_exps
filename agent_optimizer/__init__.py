@@ -33,7 +33,8 @@ from .types import (
     EvaluationResult,
     PromptSuggestion,
     WorkflowTrace,
-    AgentTrace
+    AgentTrace,
+    LLMServiceError
 )
 
 __version__ = "1.0.0"
@@ -55,5 +56,6 @@ __all__ = [
     'EvaluationResult',
     'PromptSuggestion',
     'WorkflowTrace',
-    'AgentTrace'
+    'AgentTrace',
+    'LLMServiceError'
 ]

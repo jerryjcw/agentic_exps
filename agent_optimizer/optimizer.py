@@ -9,7 +9,8 @@ from copy import deepcopy
 
 from .types import (
     OptimizationInput, OptimizationResult, 
-    OptimizationIteration, OptimizationObjective
+    OptimizationIteration, OptimizationObjective,
+    LLMServiceError
 )
 from .runner import WorkflowRunner
 from .critic import OutputEvaluator
@@ -62,7 +63,7 @@ class AgentOptimizer:
             for iteration in range(optimization_input.config.max_iterations):
                 logger.info(f"Starting optimization iteration {iteration + 1}/{optimization_input.config.max_iterations}")
                 
-                # Run workflow for each input-output pair
+                # Run workflow for each input-output pair (no LLM dependency)
                 outputs = []
                 traces = []
                 
@@ -92,25 +93,86 @@ class AgentOptimizer:
                         else:
                             processed_traces.append(None)
                 
-                # Evaluate each pair individually for detailed feedback
+                # LLM-dependent operations with retry logic
+                current_iteration_retries = 0
+                evaluation_result = None
                 individual_evaluations = []
-                for i, pair in enumerate(optimization_input.input_output_pairs):
-                    individual_eval = await self.evaluator.evaluate_output(
-                        actual_output=outputs[i],
-                        expected_output=pair.expected_output,
-                        objective=optimization_input.config.optimization_objective,
-                        agent_traces=processed_traces[i] if processed_traces and i < len(processed_traces) else None
-                    )
-                    individual_evaluations.append(individual_eval)
+                suggestions = []
                 
-                # Evaluate outputs using multiple pairs for aggregated score
-                evaluation_result = await self.evaluator.evaluate_multiple_outputs(
-                    actual_outputs=outputs,
-                    input_output_pairs=optimization_input.input_output_pairs,
-                    objective=optimization_input.config.optimization_objective,
-                    aggregation_strategy=optimization_input.config.aggregation_strategy,
-                    agent_traces=processed_traces if processed_traces else None
-                )
+                while current_iteration_retries < optimization_input.config.max_llm_retries_per_iteration:
+                    try:
+                        # Evaluate each pair individually for detailed feedback (LLM dependent)
+                        individual_evaluations = []
+                        for i, pair in enumerate(optimization_input.input_output_pairs):
+                            individual_eval = await self.evaluator.evaluate_output(
+                                actual_output=outputs[i],
+                                expected_output=pair.expected_output,
+                                objective=optimization_input.config.optimization_objective,
+                                agent_traces=processed_traces[i] if processed_traces and i < len(processed_traces) else None
+                            )
+                            individual_evaluations.append(individual_eval)
+                        
+                        # Evaluate outputs using multiple pairs for aggregated score (LLM dependent)
+                        evaluation_result = await self.evaluator.evaluate_multiple_outputs(
+                            actual_outputs=outputs,
+                            input_output_pairs=optimization_input.input_output_pairs,
+                            objective=optimization_input.config.optimization_objective,
+                            aggregation_strategy=optimization_input.config.aggregation_strategy,
+                            agent_traces=processed_traces if processed_traces else None
+                        )
+                        
+                        # If we need suggestions, generate them (LLM dependent) 
+                        if iteration < optimization_input.config.max_iterations - 1:
+                            current_prompts = self.runner.get_agent_prompts(result.final_agent_config)
+                            
+                            # Use new multiple pairs method for suggestion generation
+                            suggestions = await self.suggestion_generator.generate_suggestions_for_multiple_pairs(
+                                current_prompts=current_prompts,
+                                individual_evaluations=individual_evaluations,
+                                input_output_pairs=optimization_input.input_output_pairs,
+                                aggregated_evaluation=evaluation_result,
+                                traces=traces,
+                                objective=optimization_input.config.optimization_objective
+                            )
+                        
+                        # If we get here, all LLM operations succeeded
+                        break
+                        
+                    except LLMServiceError as llm_error:
+                        current_iteration_retries += 1
+                        result.llm_failure_count += 1
+                        
+                        if llm_error.error_type == "service_error":
+                            result.llm_service_errors += 1
+                        elif llm_error.error_type in ["format_error", "parsing_error"]:
+                            result.llm_format_errors += 1
+                        
+                        logger.warning(
+                            f"LLM {llm_error.error_type} on iteration {iteration+1}, "
+                            f"retry {current_iteration_retries}/{optimization_input.config.max_llm_retries_per_iteration}: {llm_error.message}"
+                        )
+                        
+                        if llm_error.original_response:
+                            logger.debug(f"Original LLM response: {llm_error.original_response[:500]}...")
+                        
+                        if current_iteration_retries >= optimization_input.config.max_llm_retries_per_iteration:
+                            result.termination_reason = f"LLM failures exceeded max retries ({llm_error.error_type})"
+                            logger.error(f"Terminating optimization: {result.termination_reason}")
+                            break
+                        
+                        # Brief delay before retry
+                        await asyncio.sleep(1)
+                        continue
+                
+                # Check if we should terminate due to LLM failures
+                if current_iteration_retries >= optimization_input.config.max_llm_retries_per_iteration:
+                    break
+                
+                # Continue with normal optimization flow if LLM operations succeeded
+                if not evaluation_result:
+                    logger.error("Evaluation result is None after retry loop - this should not happen")
+                    result.termination_reason = "Internal error: missing evaluation result"
+                    break
                 
                 # Log critic's evaluation output
                 logger.info(f"=== CRITIC EVALUATION (Iteration {iteration + 1}) ===")
@@ -133,11 +195,13 @@ class AgentOptimizer:
                 
                 # Create iteration record (use first trace for backward compatibility)
                 first_trace = traces[0] if traces else None
+                current_prompts = self.runner.get_agent_prompts(result.final_agent_config)
                 iteration_record = OptimizationIteration(
                     iteration=iteration + 1,
                     score=evaluation_result.score,
                     evaluation_result=evaluation_result,
-                    trace=first_trace
+                    trace=first_trace,
+                    current_prompts=current_prompts
                 )
                 
                 # Store critic response
@@ -176,21 +240,8 @@ class AgentOptimizer:
                     logger.info("Optimization stopped due to plateau")
                     break
                 
-                # Generate suggestions for next iteration
+                # Log suggester's output (suggestions already generated in retry loop above)
                 if iteration < optimization_input.config.max_iterations - 1:
-                    current_prompts = self.runner.get_agent_prompts(result.final_agent_config)
-                    
-                    # Use new multiple pairs method for suggestion generation
-                    suggestions = await self.suggestion_generator.generate_suggestions_for_multiple_pairs(
-                        current_prompts=current_prompts,
-                        individual_evaluations=individual_evaluations,
-                        input_output_pairs=optimization_input.input_output_pairs,
-                        aggregated_evaluation=evaluation_result,
-                        traces=traces,
-                        objective=optimization_input.config.optimization_objective
-                    )
-                    
-                    # Log suggester's output
                     logger.info(f"=== SUGGESTER OUTPUT (Iteration {iteration + 1}) ===")
                     if suggestions:
                         logger.info(f"Generated {len(suggestions)} suggestions:")
@@ -406,6 +457,13 @@ class AgentOptimizer:
                 'score_variance': self._calculate_score_variance(result.history, result.final_score),
                 'convergence_rate': self._calculate_convergence_rate(result.history)
             },
+            'llm_reliability_metrics': {
+                'total_llm_failures': result.llm_failure_count,
+                'service_errors': result.llm_service_errors,
+                'format_errors': result.llm_format_errors,
+                'llm_success_rate': self._calculate_llm_success_rate(result),
+                'max_retries_per_iteration': original_config.get('max_llm_retries_per_iteration', 3)
+            },
             'detailed_iterations': []
         }
         
@@ -418,6 +476,7 @@ class AgentOptimizer:
                 'suggester_response': iteration.suggester_response,
                 'generated_suggestions_count': len(iteration.generated_suggestions),
                 'applied_suggestions_count': len(iteration.changed_prompts),
+                'current_prompts': iteration.current_prompts,
                 'applied_suggestions': [
                     {
                         'agent_id': suggestion.agent_id,
@@ -502,4 +561,14 @@ class AgentOptimizer:
         iterations = len(history)
         
         return (final_score - initial_score) / iterations
+    
+    def _calculate_llm_success_rate(self, result: OptimizationResult) -> float:
+        """Calculate LLM success rate during optimization."""
+        # Estimate total LLM calls: 2 per successful iteration (critic + suggester) + failures
+        total_attempts = (result.iterations_run * 2) + result.llm_failure_count
+        if total_attempts == 0:
+            return 1.0
+        
+        successful_calls = result.iterations_run * 2
+        return successful_calls / total_attempts
     

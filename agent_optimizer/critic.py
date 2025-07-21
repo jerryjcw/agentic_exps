@@ -8,7 +8,7 @@ import traceback
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 
-from .types import EvaluationResult, AgentFeedback, OptimizationObjective, ScoringMetrics, InputOutputPair, AggregationStrategy
+from .types import EvaluationResult, AgentFeedback, OptimizationObjective, ScoringMetrics, InputOutputPair, AggregationStrategy, LLMServiceError
 from .config_loader import get_optimizer_config
 
 logger = logging.getLogger(__name__)
@@ -303,18 +303,29 @@ class OutputEvaluator:
             evaluation_result = self._parse_evaluation_response(response_text)
             
             if not evaluation_result:
-                logger.error("Failed to parse evaluation agent response, falling back to mock")
+                logger.error("Failed to parse evaluation agent response")
                 logger.error(f"Response that failed to parse: {repr(response_text)}")
-                return self._mock_llm_evaluation(actual, expected, objective)
+                raise LLMServiceError(
+                    message="Invalid evaluation response format - could not parse JSON or missing required fields",
+                    error_type="format_error",
+                    original_response=response_text
+                )
             
             return evaluation_result
             
+        except LLMServiceError:
+            # Re-raise LLMServiceError without modification
+            raise
         except Exception as e:
-            logger.error(f"Evaluation agent failed: {str(e)}")
+            logger.error(f"Evaluation agent service failed: {str(e)}")
             traceback.print_exc()
-            return self._mock_llm_evaluation(actual, expected, objective)
+            raise LLMServiceError(
+                message=f"Evaluation agent service error: {str(e)}",
+                error_type="service_error",
+                original_response=None
+            )
     
-    def _parse_evaluation_response(self, response_text: str) -> Optional[Dict[str, Any]]:
+    def _parse_evaluation_response(self, response_text: str) -> Dict[str, Any]:
         """Parse LLM evaluation response and extract JSON."""
         try:
             # Try to find JSON in the response
@@ -357,51 +368,39 @@ class OutputEvaluator:
                         logger.info(f"Successfully parsed LLM evaluation: score={score:.3f}")
                         return evaluation
                     else:
-                        logger.warning(f"Invalid score range: {score} (must be 0.0-1.0)")
+                        raise LLMServiceError(
+                            message=f"Invalid score range: {score} (must be 0.0-1.0)",
+                            error_type="format_error",
+                            original_response=response_text
+                        )
                 else:
-                    logger.warning(f"Missing required 'score' field in evaluation: {evaluation}")
+                    raise LLMServiceError(
+                        message=f"Missing required 'score' field in evaluation: {evaluation}",
+                        error_type="format_error", 
+                        original_response=response_text
+                    )
             
-            logger.warning("Could not find valid JSON structure in LLM evaluation response")
-            return None
+            raise LLMServiceError(
+                message="Could not find valid JSON structure in LLM evaluation response",
+                error_type="format_error",
+                original_response=response_text
+            )
             
+        except LLMServiceError:
+            # Re-raise LLMServiceError without modification
+            raise
         except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"JSON parsing error in evaluation: {str(e)}")
-            logger.error(f"Failed to parse JSON string: {json_str if 'json_str' in locals() else 'N/A'}")
-            return None
+            raise LLMServiceError(
+                message=f"JSON parsing error in evaluation: {str(e)}",
+                error_type="parsing_error",
+                original_response=response_text
+            )
         except Exception as e:
-            logger.error(f"Error parsing LLM evaluation response: {str(e)}")
-            return None
-    
-    def _mock_llm_evaluation(self, actual: str, expected: str, objective: OptimizationObjective) -> Dict[str, Any]:
-        """Mock LLM evaluation for testing purposes."""
-        logger.warning("🚨 USING MOCK LLM EVALUATION - Google ADK agent integration failed!")
-        # Simple similarity-based scoring
-        similarity = self._calculate_word_overlap(actual, expected)
-        
-        global_feedback = f"Output similarity: {similarity:.2f}. "
-        agent_feedback = []
-        
-        if similarity < 0.5:
-            global_feedback += "Output differs significantly from expected result. "
-            agent_feedback.append({
-                'agent_id': 'unknown',
-                'issue': 'Low similarity to expected output',
-                'evidence': f'Word overlap: {similarity:.2f}'
-            })
-        
-        if len(actual) < len(expected) * 0.5:
-            global_feedback += "Output is too brief. "
-            agent_feedback.append({
-                'agent_id': 'unknown',
-                'issue': 'Output too brief',
-                'evidence': f'Actual length: {len(actual)}, Expected length: {len(expected)}'
-            })
-        
-        return {
-            'score': similarity,
-            'global_feedback': global_feedback,
-            'agent_feedback': agent_feedback
-        }
+            raise LLMServiceError(
+                message=f"Error parsing LLM evaluation response: {str(e)}",
+                error_type="format_error",
+                original_response=response_text
+            )
     
     def _extract_agent_feedback(
         self,
@@ -462,6 +461,7 @@ class OutputEvaluator:
             logger.warning(f"Unknown aggregation strategy: {strategy}, using average")
             return sum(scores) / len(scores)
     
+    # Aggregate metrics only use average now for simplicity.
     def _aggregate_metrics(self, metrics_list: List[Dict[str, float]]) -> Dict[str, float]:
         """Aggregate metrics across multiple evaluations."""
         if not metrics_list:

@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 
 from .types import (
     EvaluationResult, PromptSuggestion, OptimizationObjective, 
-    WorkflowTrace, AgentTrace, InputOutputPair
+    WorkflowTrace, InputOutputPair, LLMServiceError
 )
 from .config_loader import get_optimizer_config
 
@@ -37,12 +37,12 @@ class SuggestionGenerator:
         expected_output: Optional[str] = None
     ) -> List[PromptSuggestion]:
         """
-        Generate suggestions for improving agent prompts.
+        Generate suggestions for improving agent prompts using LLM-based analysis only.
         
         Args:
             current_prompts: Current prompts for each agent
             evaluation_result: Result from output evaluation
-            trace: Optional workflow trace
+            trace: Optional workflow trace (not used in LLM-only approach)
             objective: Optimization objective
             expected_output: Expected output for context
             
@@ -50,31 +50,15 @@ class SuggestionGenerator:
             List of PromptSuggestion objects
         """
         try:
-            suggestions = []
-            
-            # Generate suggestions based on global feedback
-            global_suggestions = await self._generate_global_suggestions(
+            # Generate suggestions using LLM-based global analysis only
+            suggestions = await self._generate_global_suggestions(
                 current_prompts, evaluation_result, objective, expected_output
             )
-            suggestions.extend(global_suggestions)
-            
-            # Generate suggestions based on agent-specific feedback
-            agent_suggestions = await self._generate_agent_specific_suggestions(
-                current_prompts, evaluation_result, trace, objective
-            )
-            suggestions.extend(agent_suggestions)
-            
-            # Generate suggestions based on trace analysis
-            if trace:
-                trace_suggestions = await self._generate_trace_based_suggestions(
-                    current_prompts, trace, evaluation_result, objective
-                )
-                suggestions.extend(trace_suggestions)
             
             # Remove duplicates and rank suggestions
             suggestions = self._deduplicate_and_rank_suggestions(suggestions)
             
-            print(f"######## The suggestions are {suggestions} ########")
+            logger.info(f"Generated {len(suggestions)} LLM-based suggestions")
 
             return suggestions
             
@@ -129,25 +113,16 @@ class SuggestionGenerator:
                 objective
             )
             
-            # Step 2: Generate global suggestions based on aggregated feedback
-            global_suggestions = await self._generate_global_suggestions(
+            # Step 2: Generate suggestions based on aggregated feedback using LLM-only approach
+            suggestions = await self._generate_global_suggestions(
                 current_prompts=current_prompts,
                 evaluation_result=aggregated_feedback,
                 objective=objective,
                 expected_output="Multiple input-output pairs analyzed"
             )
             
-            # Step 3: Generate agent-specific suggestions based on aggregated feedback
-            agent_suggestions = await self._generate_agent_specific_suggestions(
-                current_prompts=current_prompts,
-                evaluation_result=aggregated_feedback,
-                trace=None,  # Use aggregated feedback instead of trace
-                objective=objective
-            )
-            
-            # Combine and deduplicate suggestions
-            all_suggestions = global_suggestions + agent_suggestions
-            final_suggestions = self._deduplicate_and_rank_suggestions(all_suggestions)
+            # Deduplicate and rank suggestions
+            final_suggestions = self._deduplicate_and_rank_suggestions(suggestions)
             
             logger.info(f"Generated {len(final_suggestions)} suggestions from {len(individual_evaluations)} pairs")
             return final_suggestions
@@ -251,16 +226,38 @@ class SuggestionGenerator:
             if start_idx >= 0 and end_idx > start_idx:
                 json_str = response[start_idx:end_idx]
                 parsed_response = json.loads(json_str)
-                return parsed_response
                 
+                # Validate required fields
+                if 'global_feedback' not in parsed_response:
+                    raise LLMServiceError(
+                        message="Missing 'global_feedback' field in aggregated response",
+                        error_type="format_error",
+                        original_response=response
+                    )
+                
+                return parsed_response
+            else:
+                raise LLMServiceError(
+                    message="Could not find JSON structure in aggregated feedback response",
+                    error_type="format_error",
+                    original_response=response
+                )
+                
+        except LLMServiceError:
+            # Re-raise LLMServiceError without modification
+            raise
+        except json.JSONDecodeError as e:
+            raise LLMServiceError(
+                message=f"JSON parsing error in aggregated feedback: {str(e)}",
+                error_type="parsing_error",
+                original_response=response
+            )
         except Exception as e:
-            logger.warning(f"Could not parse aggregated feedback as JSON: {str(e)}")
-        
-        # Fallback: treat as plain text
-        return {
-            'global_feedback': response,
-            'agent_feedback': []
-        }
+            raise LLMServiceError(
+                message=f"Error parsing aggregated feedback response: {str(e)}",
+                error_type="format_error",
+                original_response=response
+            )
     
     async def _generate_global_suggestions(
         self,
@@ -313,193 +310,7 @@ class SuggestionGenerator:
             logger.error(f"Error in global suggestion generation: {str(e)}")
         
         return suggestions
-    
-    async def _generate_agent_specific_suggestions(
-        self,
-        current_prompts: Dict[str, str],
-        evaluation_result: EvaluationResult,
-        trace: Optional[WorkflowTrace],
-        objective: OptimizationObjective
-    ) -> List[PromptSuggestion]:
-        """Generate suggestions based on agent-specific feedback."""
-        suggestions = []
         
-        for agent_feedback in evaluation_result.agent_feedback:
-            agent_id = agent_feedback.agent_id
-            
-            if agent_id in current_prompts:
-                # Generate specific suggestion for this agent
-                suggestion = await self._generate_specific_agent_suggestion(
-                    agent_id,
-                    current_prompts[agent_id],
-                    agent_feedback,
-                    trace,
-                    objective
-                )
-                
-                if suggestion:
-                    suggestions.append(suggestion)
-        
-        return suggestions
-    
-    async def _generate_specific_agent_suggestion(
-        self,
-        agent_id: str,
-        current_prompt: str,
-        agent_feedback,
-        trace: Optional[WorkflowTrace],
-        objective: OptimizationObjective
-    ) -> Optional[PromptSuggestion]:
-        """Generate a specific suggestion for an agent."""
-        try:
-            # Analyze the feedback to determine improvement strategy
-            issue = agent_feedback.issue.lower()
-            
-            # Get agent trace if available
-            agent_trace = None
-            if trace and agent_id in trace.agent_traces:
-                agent_trace = trace.agent_traces[agent_id]
-            
-            # Generate suggestion based on issue type
-            if 'accuracy' in issue or 'incorrect' in issue:
-                new_prompt = self._improve_accuracy_prompt(current_prompt, agent_feedback)
-            elif 'detail' in issue or 'brief' in issue:
-                new_prompt = self._improve_detail_prompt(current_prompt, agent_feedback)
-            elif 'format' in issue or 'structure' in issue:
-                new_prompt = self._improve_format_prompt(current_prompt, agent_feedback)
-            elif 'context' in issue or 'understanding' in issue:
-                new_prompt = self._improve_context_prompt(current_prompt, agent_feedback)
-            else:
-                new_prompt = self._generic_improvement_prompt(current_prompt, agent_feedback)
-            
-            return PromptSuggestion(
-                agent_id=agent_id,
-                new_prompt=new_prompt,
-                reason=f"Address issue: {agent_feedback.issue}",
-                confidence=0.8
-            )
-            
-        except Exception as e:
-            logger.error(f"Error generating specific suggestion for {agent_id}: {str(e)}")
-            return None
-    
-    async def _generate_trace_based_suggestions(
-        self,
-        current_prompts: Dict[str, str],
-        trace: WorkflowTrace,
-        evaluation_result: EvaluationResult,
-        objective: OptimizationObjective
-    ) -> List[PromptSuggestion]:
-        """Generate suggestions based on trace analysis."""
-        suggestions = []
-        
-        # Analyze trace patterns
-        for agent_id, agent_trace in trace.agent_traces.items():
-            if agent_id in current_prompts:
-                # Check for common issues
-                if agent_trace.error:
-                    suggestion = self._create_error_handling_suggestion(
-                        agent_id, current_prompts[agent_id], agent_trace
-                    )
-                    if suggestion:
-                        suggestions.append(suggestion)
-                
-                # Check output length patterns
-                if len(agent_trace.output_data) < 100:
-                    suggestion = self._create_output_length_suggestion(
-                        agent_id, current_prompts[agent_id], agent_trace
-                    )
-                    if suggestion:
-                        suggestions.append(suggestion)
-        
-        return suggestions
-    
-    def _improve_accuracy_prompt(self, current_prompt: str, agent_feedback) -> str:
-        """Improve prompt for accuracy issues."""
-        accuracy_additions = self.config.get_improvement_additions('accuracy_additions')
-        
-        # Add accuracy-focused instructions
-        improved_prompt = current_prompt.rstrip()
-        improved_prompt += "\n\nACCURACY FOCUS:\n"
-        improved_prompt += "\n".join(accuracy_additions)
-        
-        return improved_prompt
-    
-    def _improve_detail_prompt(self, current_prompt: str, agent_feedback) -> str:
-        """Improve prompt for detail/completeness issues."""
-        detail_additions = self.config.get_improvement_additions('detail_additions')
-        
-        improved_prompt = current_prompt.rstrip()
-        improved_prompt += "\n\nDETAIL REQUIREMENTS:\n"
-        improved_prompt += "\n".join(detail_additions)
-        
-        return improved_prompt
-    
-    def _improve_format_prompt(self, current_prompt: str, agent_feedback) -> str:
-        """Improve prompt for format/structure issues."""
-        format_additions = self.config.get_improvement_additions('format_additions')
-        
-        improved_prompt = current_prompt.rstrip()
-        improved_prompt += "\n\nFORMATTING REQUIREMENTS:\n"
-        improved_prompt += "\n".join(format_additions)
-        
-        return improved_prompt
-    
-    def _improve_context_prompt(self, current_prompt: str, agent_feedback) -> str:
-        """Improve prompt for context understanding issues."""
-        context_additions = self.config.get_improvement_additions('context_additions')
-        
-        improved_prompt = current_prompt.rstrip()
-        improved_prompt += "\n\nCONTEXT AWARENESS:\n"
-        improved_prompt += "\n".join(context_additions)
-        
-        return improved_prompt
-    
-    def _generic_improvement_prompt(self, current_prompt: str, agent_feedback) -> str:
-        """Generic prompt improvement."""
-        improved_prompt = current_prompt.rstrip()
-        improved_prompt += f"\n\nIMPROVEMENT NOTE:\n"
-        improved_prompt += f"Address the following issue: {agent_feedback.issue}\n"
-        improved_prompt += f"Evidence: {agent_feedback.evidence}"
-        
-        return improved_prompt
-    
-    def _create_error_handling_suggestion(
-        self,
-        agent_id: str,
-        current_prompt: str,
-        agent_trace: AgentTrace
-    ) -> Optional[PromptSuggestion]:
-        """Create suggestion for error handling."""
-        error_handling_addition = self.config.get_improvement_template('error_handling')
-        
-        new_prompt = current_prompt.rstrip() + "\n" + error_handling_addition
-        
-        return PromptSuggestion(
-            agent_id=agent_id,
-            new_prompt=new_prompt,
-            reason=f"Improve error handling (previous error: {agent_trace.error})",
-            confidence=0.7
-        )
-    
-    def _create_output_length_suggestion(
-        self,
-        agent_id: str,
-        current_prompt: str,
-        agent_trace: AgentTrace
-    ) -> Optional[PromptSuggestion]:
-        """Create suggestion for output length issues."""
-        length_addition = self.config.get_improvement_template('output_length')
-        
-        new_prompt = current_prompt.rstrip() + "\n" + length_addition
-        
-        return PromptSuggestion(
-            agent_id=agent_id,
-            new_prompt=new_prompt,
-            reason=f"Increase output detail (previous output: {len(agent_trace.output_data)} chars)",
-            confidence=0.6
-        )
-    
     def _deduplicate_and_rank_suggestions(
         self,
         suggestions: List[PromptSuggestion]
@@ -524,33 +335,6 @@ class SuggestionGenerator:
         
         return ranked_suggestions
     
-    async def _mock_llm_suggestions(
-        self,
-        current_prompts: Dict[str, str],
-        evaluation_result: EvaluationResult,
-        objective: OptimizationObjective
-    ) -> List[Dict[str, Any]]:
-        """Mock LLM suggestions for testing purposes."""
-        logger.warning("🚨 USING MOCK LLM SUGGESTIONS - Google ADK agent integration failed!")
-        suggestions = []
-        
-        # Generate simple suggestions based on score
-        logger.info(f"Mock LLM suggestions: score={evaluation_result.score:.3f}, threshold=0.5")
-        if evaluation_result.score < 0.5:
-            logger.info(f"Generating suggestions for {len(current_prompts)} agents")
-            for agent_id in current_prompts.keys():
-                new_prompt = current_prompts[agent_id] + "\n\nPlease provide more detailed and accurate analysis."
-                suggestions.append({
-                    'agent_id': agent_id,
-                    'new_prompt': new_prompt,
-                    'reason': f"Low evaluation score ({evaluation_result.score:.2f})",
-                    'confidence': 0.6
-                })
-                logger.info(f"Generated suggestion for {agent_id}: {len(new_prompt)} chars")
-        else:
-            logger.info("Score above threshold, no suggestions generated")
-        
-        return suggestions
     
     async def _real_llm_suggestions(
         self,
@@ -584,15 +368,24 @@ class SuggestionGenerator:
             suggestions = self._parse_llm_response(response_text)
             
             if not suggestions:
-                logger.warning("No valid suggestions from suggestion agent, falling back to mock")
-                return await self._mock_llm_suggestions(current_prompts, evaluation_result, objective)
+                raise LLMServiceError(
+                    message="No valid suggestions from suggestion agent - empty or invalid response",
+                    error_type="format_error",
+                    original_response=response_text
+                )
             
             return suggestions
             
+        except LLMServiceError:
+            # Re-raise LLMServiceError without modification
+            raise
         except Exception as e:
-            logger.error(f"Suggestion agent failed: {str(e)}")
-            # Fall back to mock suggestions
-            return await self._mock_llm_suggestions(current_prompts, evaluation_result, objective)
+            logger.error(f"Suggestion agent service failed: {str(e)}")
+            raise LLMServiceError(
+                message=f"Suggestion agent service error: {str(e)}",
+                error_type="service_error",
+                original_response=None
+            )
     
     def _parse_llm_response(self, response_text: str) -> List[Dict[str, Any]]:
         """Parse LLM response and extract suggestion JSON."""
@@ -620,23 +413,40 @@ class SuggestionGenerator:
                             valid_suggestions.append(suggestion)
                             logger.info(f"Valid suggestion {i+1}: agent_id={suggestion['agent_id']}, reason={suggestion['reason'][:50]}...")
                         else:
-                            logger.warning(f"Invalid suggestion {i+1}: missing required fields. Got: {suggestion}")
+                            raise LLMServiceError(
+                                message=f"Invalid suggestion {i+1}: missing required fields (agent_id, new_prompt, reason). Got: {suggestion}",
+                                error_type="format_error",
+                                original_response=response_text
+                            )
                     
                     logger.info(f"Successfully parsed {len(valid_suggestions)} valid suggestions from LLM")
                     return valid_suggestions
                 else:
-                    logger.warning(f"Expected list of suggestions, got: {type(suggestions)}")
+                    raise LLMServiceError(
+                        message=f"Expected list of suggestions, got: {type(suggestions)}",
+                        error_type="format_error",
+                        original_response=response_text
+                    )
             else:
-                logger.warning("Could not find JSON array structure in LLM response")
+                raise LLMServiceError(
+                    message="Could not find JSON array structure in LLM response",
+                    error_type="format_error",
+                    original_response=response_text
+                )
             
-            logger.warning("Could not parse valid JSON from LLM response")
-            return []
-            
+        except LLMServiceError:
+            # Re-raise LLMServiceError without modification
+            raise
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error: {str(e)}")
-            logger.error(f"Failed to parse JSON string: {json_str if 'json_str' in locals() else 'N/A'}")
-            return []
+            raise LLMServiceError(
+                message=f"JSON parsing error: {str(e)}",
+                error_type="parsing_error",
+                original_response=response_text
+            )
         except Exception as e:
-            logger.error(f"Error parsing LLM response: {str(e)}")
-            return []
+            raise LLMServiceError(
+                message=f"Error parsing LLM response: {str(e)}",
+                error_type="format_error",
+                original_response=response_text
+            )
     

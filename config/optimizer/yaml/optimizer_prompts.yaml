@@ -324,11 +324,23 @@ suggester:
       ]
 
     feedback_aggregation: |
-      You are an expert analyst tasked with aggregating feedback from multiple input-output evaluation pairs.
+      You are an expert analyst tasked with aggregating feedback from multiple input-output evaluation pairs to synthesize actionable insights for agent prompt optimization.
+
+      ## INPUT DATA STRUCTURE
 
       NUMBER OF PAIRS EVALUATED: {num_pairs}
 
       INDIVIDUAL PAIR EVALUATIONS:
+      Each pair evaluation follows this format:
+      ```
+      Pair X:
+        Score: [0.0-1.0 numeric score]
+        Global Feedback: [Overall assessment of the pair's performance]
+        Agent Feedback:
+          - [agent_name]: [specific issue identified for this agent]
+            Evidence: [supporting evidence from this pair's execution]
+      ```
+
       {pair_summaries}
 
       CURRENT AGENT PROMPTS:
@@ -336,29 +348,49 @@ suggester:
 
       OPTIMIZATION OBJECTIVE: {objective}
 
-      Your task is to analyze all the individual evaluations and synthesize the feedback into actionable insights for prompt improvement. Look for:
-      1. Common patterns and issues across multiple pairs
-      2. Agent-specific problems that appear consistently
-      3. Global issues affecting the overall workflow
-      4. Priority areas for improvement based on frequency and impact
+      ## ANALYSIS INSTRUCTIONS
+
+      Your task is to analyze ALL individual pair evaluations and synthesize them into actionable insights for prompt improvement.
+
+      ### Step 1: Process Global Feedback
+      - Read the "Global Feedback" from each pair evaluation
+      - Identify common themes, patterns, and issues that appear across multiple pairs
+      - Synthesize these into an overall assessment of workflow performance
+
+      ### Step 2: Process Agent-Specific Feedback
+      - Examine the "Agent Feedback" sections from all pairs
+      - Group feedback by agent name/ID (e.g., all feedback for "GeneralCodeAnalysisAgent")
+      - For each agent, identify recurring issues that appear in multiple pairs
+      - Consolidate evidence from multiple pairs to support each identified issue
+
+      ### Step 3: Prioritization
+      - Prioritize issues based on:
+        - Frequency: How many pairs experienced this issue?
+        - Impact: How severely did this issue affect the optimization objective?
+        - Actionability: How clearly can this be addressed through prompt improvements?
+
+      ## OUTPUT FORMAT
 
       Provide your aggregated analysis in this EXACT JSON format:
       {{
-          "global_feedback": "Comprehensive analysis of patterns and issues across all pairs",
+          "global_feedback": "Comprehensive synthesis of global feedback patterns across all {num_pairs} pairs, focusing on workflow-level issues that affect overall performance",
           "agent_feedback": [
               {{
-                  "agent_id": "specific_agent_name",
-                  "issue": "summarized issue affecting this agent across pairs",
-                  "evidence": "supporting evidence from multiple pairs"
+                  "agent_id": "exact_agent_name_from_current_prompts",
+                  "issue": "specific, actionable issue that this agent exhibits consistently across multiple pairs",
+                  "evidence": "concrete evidence from multiple pairs, including frequency (e.g., 'appeared in 3 out of 4 pairs') and specific examples"
               }}
           ]
       }}
 
-      Focus on:
-      - Identifying consistent problems that appear across multiple pairs
-      - Synthesizing specific, actionable feedback for each agent
-      - Prioritizing issues based on their frequency and impact on the objective
-      - Providing clear evidence for each identified issue
+      ## QUALITY REQUIREMENTS
+
+      - **Global Feedback**: Must synthesize patterns from ALL pair evaluations, not just individual issues
+      - **Agent Feedback**: Must only include agents that have consistent issues across multiple pairs
+      - **Evidence**: Must cite specific examples and frequency of occurrence across pairs
+      - **Agent IDs**: Must use exact agent names from the current prompts section
+      - **Actionability**: All issues must be specific enough to guide prompt improvements
+      - **Objective Alignment**: All feedback must be relevant to the optimization objective: {objective}
 
   system_messages:
     default: |
@@ -383,15 +415,34 @@ suggester:
       - Confidence should be between 0.5 and 1.0
 
     aggregation: |
-      You are an expert analyst specializing in feedback aggregation and pattern recognition. Your task is to analyze multiple evaluation results and synthesize them into coherent, actionable insights.
+      You are an expert analyst specializing in multi-pair evaluation feedback aggregation and pattern recognition for agent optimization systems.
 
-      Focus on:
-      - Identifying recurring patterns and common issues
-      - Synthesizing feedback into clear, specific recommendations
-      - Prioritizing issues based on frequency and impact
-      - Providing evidence-based analysis
+      ## YOUR EXPERTISE
+      - Analyzing multiple input-output evaluation pairs to identify patterns
+      - Distinguishing between global workflow issues and agent-specific problems  
+      - Synthesizing evidence from multiple data points into actionable insights
+      - Prioritizing improvements based on frequency, impact, and actionability
 
-      Always return valid JSON in the exact format requested.
+      ## ANALYSIS METHODOLOGY
+      1. **Global Pattern Recognition**: Identify themes that appear in global feedback across multiple pairs
+      2. **Agent-Specific Grouping**: Cluster feedback by specific agent names/IDs to identify recurring agent issues
+      3. **Evidence Consolidation**: Combine evidence from multiple pairs to support each identified issue
+      4. **Frequency Analysis**: Quantify how often each issue appears across the evaluation pairs
+      5. **Impact Assessment**: Evaluate how each issue affects the optimization objective
+      6. **Actionability Filtering**: Only include issues that can be addressed through prompt improvements
+
+      ## OUTPUT REQUIREMENTS
+      - Use exact agent names from the current prompts section
+      - Provide concrete evidence with frequency counts (e.g., "appeared in 3 out of 4 pairs")
+      - Focus on issues that appear consistently across multiple pairs, not isolated incidents
+      - Ensure all feedback is relevant to the specified optimization objective
+      - Return valid JSON in the exact format specified in the prompt
+
+      ## QUALITY STANDARDS
+      - **Precision**: Only report issues with sufficient evidence across multiple pairs
+      - **Clarity**: Use specific, actionable language that guides prompt improvements
+      - **Completeness**: Address both global workflow issues and individual agent problems
+      - **Accuracy**: Use exact agent names and provide verifiable evidence citations
 
   improvements:
     accuracy_additions:
