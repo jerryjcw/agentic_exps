@@ -61,6 +61,7 @@ class AgentOptimizer:
         
         try:
             for iteration in range(optimization_input.config.max_iterations):
+                is_done = False
                 logger.info(f"Starting optimization iteration {iteration + 1}/{optimization_input.config.max_iterations}")
                 
                 # Run workflow for each input-output pair (no LLM dependency)
@@ -232,13 +233,13 @@ class AgentOptimizer:
                     result.convergence_achieved = True
                     result.termination_reason = "Convergence threshold reached"
                     logger.info(f"Converged! Score: {evaluation_result.score:.3f}")
-                    break
+                    is_done = True
                 
                 # Check for plateau
                 if plateau_counter >= optimization_input.config.plateau_patience:
                     result.termination_reason = "Plateau detected - no improvement"
                     logger.info("Optimization stopped due to plateau")
-                    break
+                    is_done = True
                 
                 # Log suggester's output (suggestions already generated in retry loop above)
                 if iteration < optimization_input.config.max_iterations - 1:
@@ -292,6 +293,9 @@ class AgentOptimizer:
                 # Add iteration to history
                 result.history.append(iteration_record)
                 result.iterations_run += 1
+                if is_done:
+                    logger.info("Optimization loop terminated early")
+                    break
             
             # Set final results
             result.final_score = best_score
