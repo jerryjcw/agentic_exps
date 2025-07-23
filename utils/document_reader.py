@@ -25,6 +25,16 @@ from docx import Document
 from pptx import Presentation
 import pandas as pd
 
+# GPU detection and Docling imports
+try:
+    import torch
+    from docling.document_converter import DocumentConverter
+    DOCLING_AVAILABLE = True
+except ImportError:
+    torch = None
+    DocumentConverter = None
+    DOCLING_AVAILABLE = False
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -34,17 +44,30 @@ class DocumentReader:
     Universal document reader supporting multiple file formats.
     
     Supported formats:
-    - PDF (.pdf) - using PyPDF2
-    - Word (.docx) - using python-docx
-    - PowerPoint (.pptx) - using python-pptx
+    - PDF (.pdf) - using Docling (GPU) or PyPDF2 (CPU fallback)
+    - Word (.docx) - using Docling (GPU) or python-docx (CPU fallback)
+    - PowerPoint (.pptx) - using Docling (GPU) or python-pptx (CPU fallback)
     - Text (.txt) - native Python
     - Markdown (.md) - native Python
     - CSV (.csv) - using pandas
     - Excel (.xlsx) - using pandas
     """
     
-    def __init__(self):
-        """Initialize the DocumentReader with format handlers."""
+    def __init__(self, use_gpu: Optional[bool] = None):
+        """
+        Initialize the DocumentReader with format handlers.
+        
+        Args:
+            use_gpu: If True, force GPU usage. If False, force CPU. If None, auto-detect.
+        """
+        self.use_docling = self._should_use_docling(use_gpu)
+        
+        if self.use_docling:
+            self._init_docling()
+            logger.info("Initialized DocumentReader with Docling (GPU acceleration)")
+        else:
+            logger.info("Initialized DocumentReader with traditional libraries (CPU fallback)")
+        
         self.supported_formats = {
             '.pdf': self._read_pdf,
             '.docx': self._read_docx,
@@ -138,6 +161,67 @@ class DocumentReader:
         
         return results
     
+    def _should_use_docling(self, use_gpu: Optional[bool] = None) -> bool:
+        """
+        Determine whether to use Docling based on GPU availability and configuration.
+        
+        Args:
+            use_gpu: User preference for GPU usage
+            
+        Returns:
+            bool: True if Docling should be used
+        """
+        if not DOCLING_AVAILABLE:
+            logger.info("Docling not available, using traditional libraries")
+            return False
+        
+        if use_gpu is False:
+            logger.info("GPU usage explicitly disabled, using traditional libraries")
+            return False
+        
+        # Check if GPU is available
+        gpu_available = torch and torch.cuda.is_available()
+        
+        if use_gpu is True and not gpu_available:
+            logger.warning("GPU usage requested but no GPU available, falling back to traditional libraries")
+            return False
+        
+        if gpu_available:
+            logger.info(f"GPU detected: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Unknown'}")
+            return True
+        
+        # Check for Apple Silicon MPS
+        if torch and hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            logger.info("Apple Silicon MPS detected, using Docling")
+            return True
+        
+        logger.info("No GPU acceleration available, using traditional libraries")
+        return False
+    
+    def _init_docling(self):
+        """
+        Initialize Docling with optimal GPU configuration.
+        """
+        try:
+            # Determine best device and set GPU memory management
+            if torch.cuda.is_available():
+                device_name = torch.cuda.get_device_name(0)
+                logger.info(f"Using CUDA device: {device_name}")
+                
+                # Set GPU memory management
+                torch.cuda.set_per_process_memory_fraction(0.8)
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                logger.info("Using Apple Silicon MPS")
+            else:
+                logger.info("Using CPU acceleration")
+            
+            # Initialize converter - using default initialization for broad compatibility
+            self.docling_converter = DocumentConverter()
+            
+        except Exception as e:
+            logger.warning(f"Failed to initialize Docling: {e}, falling back to CPU")
+            self.use_docling = False
+    
     def get_supported_formats(self) -> List[str]:
         """
         Get list of supported file formats.
@@ -146,6 +230,15 @@ class DocumentReader:
             List[str]: List of supported file extensions
         """
         return list(self.supported_formats.keys())
+    
+    def is_using_gpu(self) -> bool:
+        """
+        Check if the reader is using GPU acceleration.
+        
+        Returns:
+            bool: True if using GPU acceleration (Docling)
+        """
+        return self.use_docling
     
     def is_supported(self, file_path: Union[str, Path]) -> bool:
         """
@@ -204,7 +297,6 @@ class DocumentReader:
         # Pattern 2: ASCII bullet patterns with regex
         ascii_bullet_pattern = r'^[-*+•◦▪▫‣⁃] '
         if re.match(ascii_bullet_pattern, line):
-            bullet_char = line[0]
             return f"- {line[1:].strip()}"
         
         # Pattern 3: Numbered lists (comprehensive)
@@ -250,7 +342,32 @@ class DocumentReader:
     # Format-specific readers
     
     def _read_pdf(self, file_path: Path, as_markdown: bool = False) -> str:
-        """Read PDF file using PyPDF2."""
+        """Read PDF file using Docling (GPU) or PyPDF2 (CPU fallback)."""
+        if self.use_docling:
+            return self._read_pdf_docling(file_path, as_markdown)
+        else:
+            return self._read_pdf_pypdf2(file_path, as_markdown)
+    
+    def _read_pdf_docling(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read PDF file using Docling with GPU acceleration."""
+        try:
+            result = self.docling_converter.convert(file_path)
+            
+            if as_markdown:
+                return result.document.export_to_markdown()
+            else:
+                # Convert to plain text with page separators for compatibility
+                markdown_content = result.document.export_to_markdown()
+                return self._convert_docling_markdown_to_plain_with_pages(markdown_content, result.document.num_pages)
+        except Exception as e:
+            # Clear GPU cache and try CPU fallback
+            if torch and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.warning(f"Docling PDF processing failed: {e}, falling back to PyPDF2")
+            return self._read_pdf_pypdf2(file_path, as_markdown)
+    
+    def _read_pdf_pypdf2(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read PDF file using PyPDF2 (original implementation)."""
         content = []
         try:
             with open(file_path, 'rb') as file:
@@ -404,7 +521,31 @@ class DocumentReader:
         return "\n".join(rows)
     
     def _read_docx(self, file_path: Path, as_markdown: bool = False) -> str:
-        """Read Word document using python-docx."""
+        """Read Word document using Docling (GPU) or python-docx (CPU fallback)."""
+        if self.use_docling:
+            return self._read_docx_docling(file_path, as_markdown)
+        else:
+            return self._read_docx_python_docx(file_path, as_markdown)
+    
+    def _read_docx_docling(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read Word document using Docling with GPU acceleration."""
+        try:
+            result = self.docling_converter.convert(file_path)
+            
+            if as_markdown:
+                return result.document.export_to_markdown()
+            else:
+                # Convert to plain text for compatibility
+                return result.document.export_to_text()
+        except Exception as e:
+            # Clear GPU cache and try CPU fallback
+            if torch and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.warning(f"Docling DOCX processing failed: {e}, falling back to python-docx")
+            return self._read_docx_python_docx(file_path, as_markdown)
+    
+    def _read_docx_python_docx(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read Word document using python-docx (original implementation)."""
         try:
             doc = Document(file_path)
             content = []
@@ -439,7 +580,32 @@ class DocumentReader:
             raise Exception(f"Error reading Word document: {e}")
     
     def _read_pptx(self, file_path: Path, as_markdown: bool = False) -> str:
-        """Read PowerPoint presentation using python-pptx."""
+        """Read PowerPoint presentation using Docling (GPU) or python-pptx (CPU fallback)."""
+        if self.use_docling:
+            return self._read_pptx_docling(file_path, as_markdown)
+        else:
+            return self._read_pptx_python_pptx(file_path, as_markdown)
+    
+    def _read_pptx_docling(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read PowerPoint presentation using Docling with GPU acceleration."""
+        try:
+            result = self.docling_converter.convert(file_path)
+            
+            if as_markdown:
+                return result.document.export_to_markdown()
+            else:
+                # Convert to plain text with slide separators for compatibility
+                markdown_content = result.document.export_to_markdown()
+                return self._convert_docling_pptx_markdown_to_plain(markdown_content)
+        except Exception as e:
+            # Clear GPU cache and try CPU fallback
+            if torch and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.warning(f"Docling PPTX processing failed: {e}, falling back to python-pptx")
+            return self._read_pptx_python_pptx(file_path, as_markdown)
+    
+    def _read_pptx_python_pptx(self, file_path: Path, as_markdown: bool = False) -> str:
+        """Read PowerPoint presentation using python-pptx (original implementation)."""
         try:
             prs = Presentation(file_path)
             content = []
@@ -624,6 +790,53 @@ class DocumentReader:
         except Exception as e:
             raise Exception(f"Error reading Excel file: {e}")
     
+    def _convert_docling_markdown_to_plain_with_pages(self, markdown_content: str, num_pages: int) -> str:
+        """Convert Docling markdown output to plain text with page separators for compatibility."""
+        lines = markdown_content.split('\n')
+        plain_lines = []
+        current_page = 1
+        
+        for line in lines:
+            # Remove markdown formatting for plain text compatibility
+            line = re.sub(r'^#+\s+', '', line)  # Remove headers
+            line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)  # Remove bold
+            line = re.sub(r'\*(.*?)\*', r'\1', line)  # Remove italic
+            line = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', line)  # Remove links
+            
+            # Add page separators similar to PyPDF2 format
+            if line.strip().startswith('<!-- image -->') or (current_page <= num_pages and len(plain_lines) > 0 and len(plain_lines) % 50 == 0):
+                if current_page <= num_pages:
+                    plain_lines.append(f"--- Page {current_page} ---")
+                    current_page += 1
+            
+            if line.strip():
+                plain_lines.append(line)
+        
+        return '\n'.join(plain_lines)
+    
+    def _convert_docling_pptx_markdown_to_plain(self, markdown_content: str) -> str:
+        """Convert Docling PPTX markdown output to plain text with slide separators for compatibility."""
+        lines = markdown_content.split('\n')
+        plain_lines = []
+        slide_num = 1
+        
+        for line in lines:
+            # Detect slide boundaries and add separators
+            if line.strip().startswith('##') and 'slide' not in line.lower():
+                plain_lines.append(f"--- Slide {slide_num} ---")
+                slide_num += 1
+            
+            # Remove markdown formatting for plain text compatibility
+            line = re.sub(r'^#+\s+', '', line)  # Remove headers
+            line = re.sub(r'\*\*(.*?)\*\*', r'\1', line)  # Remove bold
+            line = re.sub(r'\*(.*?)\*', r'\1', line)  # Remove italic
+            line = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', line)  # Remove links
+            
+            if line.strip():
+                plain_lines.append(line)
+        
+        return '\n'.join(plain_lines)
+    
     def _dataframe_to_markdown(self, df, max_rows: int = None) -> str:
         """Convert pandas DataFrame to markdown table format."""
         if df.empty:
@@ -711,33 +924,35 @@ class DocumentReader:
 
 
 # Convenience functions for direct usage
-def read_document(file_path: Union[str, Path], as_markdown: bool = False) -> str:
+def read_document(file_path: Union[str, Path], as_markdown: bool = False, use_gpu: Optional[bool] = None) -> str:
     """
     Convenience function to read a single document.
     
     Args:
         file_path: Path to the document
         as_markdown: If True, format output as markdown preserving structure
+        use_gpu: If True, force GPU usage. If False, force CPU. If None, auto-detect.
         
     Returns:
         str: Document content as text or markdown
     """
-    reader = DocumentReader()
+    reader = DocumentReader(use_gpu=use_gpu)
     return reader.read_document(file_path, as_markdown)
 
 
-def read_multiple_documents(file_paths: List[Union[str, Path]], as_markdown: bool = False) -> Dict[str, Dict[str, str]]:
+def read_multiple_documents(file_paths: List[Union[str, Path]], as_markdown: bool = False, use_gpu: Optional[bool] = None) -> Dict[str, Dict[str, str]]:
     """
     Convenience function to read multiple documents.
     
     Args:
         file_paths: List of file paths
         as_markdown: If True, format output as markdown preserving structure
+        use_gpu: If True, force GPU usage. If False, force CPU. If None, auto-detect.
         
     Returns:
         Dict: Results mapping
     """
-    reader = DocumentReader()
+    reader = DocumentReader(use_gpu=use_gpu)
     return reader.read_multiple_documents(file_paths, as_markdown)
 
 
@@ -752,9 +967,9 @@ def get_supported_formats() -> List[str]:
     return reader.get_supported_formats()
 
 
-def read_documents(file_paths):
+def read_documents(file_paths, use_gpu: Optional[bool] = None):
     """Convenience function to read PDF documents."""
-    reader = DocumentReader()
+    reader = DocumentReader(use_gpu=use_gpu)
     content = reader.read_multiple_documents(file_paths, as_markdown=True)
     return content
 
