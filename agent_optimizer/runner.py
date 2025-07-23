@@ -52,9 +52,9 @@ class WorkflowRunner:
         if template_config is None:
             template_config = self._create_default_template_config()
         
-        # Update job config with input data if it doesn't have template_config_content
-        if 'analysis_config' not in job_config or 'template_config_content' not in job_config['analysis_config']:
-            job_config = self._update_job_config_with_input(job_config, input_data)
+        # Handle input_config format - merge with job_config
+        if isinstance(input_data, dict):
+            job_config = self._merge_input_config_with_job_config(job_config, input_data)
         
         try:
             # Convert configurations to YAML strings
@@ -151,22 +151,17 @@ class WorkflowRunner:
             }
         }
     
-    def _update_job_config_with_input(self, job_config: Dict[str, Any], input_data: Any) -> Dict[str, Any]:
-        """Update job configuration with input data."""
+    def _merge_input_config_with_job_config(self, job_config: Dict[str, Any], input_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge input_config with job_config."""
         # Create a copy to avoid modifying original
         updated_config = json.loads(json.dumps(job_config))
         
-        # Update analysis config with input data
-        if 'analysis_config' not in updated_config:
-            updated_config['analysis_config'] = {}
+        # Update the input_config section
+        if 'input_config' not in updated_config:
+            updated_config['input_config'] = {}
         
-        # Set template config content with input data
-        updated_config['analysis_config']['template_config_content'] = {
-            "template_name": "optimization_input",
-            "template_description": "Input data for optimization",
-            "user_query_template": str(input_data),
-            "variables": {}
-        }
+        # Merge the input_config from the input_data
+        updated_config['input_config'].update(input_config)
         
         return updated_config
     

@@ -10,8 +10,9 @@ from copy import deepcopy
 from .types import (
     OptimizationInput, OptimizationResult, 
     OptimizationIteration, OptimizationObjective,
-    LLMServiceError
+    LLMServiceError, InputOutputPair, TargetConfig
 )
+from utils.document_reader import DocumentReader
 from .runner import WorkflowRunner
 from .critic import OutputEvaluator
 from .trace import TraceExtractor
@@ -30,6 +31,62 @@ class AgentOptimizer:
         self.trace_extractor = TraceExtractor()
         self.suggestion_generator = SuggestionGenerator()
         self.prompt_updater = PromptUpdater()
+        self.document_reader = DocumentReader()
+    
+    async def _convert_file_configs_to_pairs(
+        self,
+        input_configs: List[Dict[str, Any]],
+        target_configs: List[TargetConfig],
+        job_config: Optional[Dict[str, Any]] = None,
+        template_config: Optional[Dict[str, Any]] = None
+    ) -> List[InputOutputPair]:
+        """
+        Convert file-based input and target configurations to InputOutputPair objects.
+        
+        Args:
+            input_configs: List of input configurations (follows flexible_agents format)
+            target_configs: List of target configurations with file paths
+            job_config: Job configuration to pass to flexible_agents
+            template_config: Template configuration to pass to flexible_agents
+            
+        Returns:
+            List of InputOutputPair objects
+        """
+        if len(input_configs) != len(target_configs):
+            raise ValueError(f"input_configs length ({len(input_configs)}) must match target_configs length ({len(target_configs)})")
+        
+        input_output_pairs = []
+        
+        for i, (input_config, target_config) in enumerate(zip(input_configs, target_configs)):
+            logger.info(f"Processing input-target pair {i + 1}/{len(input_configs)}")
+            
+            # Create a temporary agent config to run the workflow and get input data
+            # We don't need the actual output, just the input data that will be passed to agents
+            temp_job_config = deepcopy(job_config) if job_config else {}
+            temp_job_config['input_config'] = input_config
+            
+            # Read the target file to get expected output
+            try:
+                expected_output = self.document_reader.read_document(target_config.target_path)
+                logger.info(f"Successfully read target file: {target_config.target_path}")
+            except Exception as e:
+                logger.error(f"Failed to read target file {target_config.target_path}: {str(e)}")
+                raise ValueError(f"Could not read target file {target_config.target_path}: {str(e)}")
+            
+            # For input_data, we use the input_config directly since the runner will handle it
+            # The runner will pass this to flexible_agents which knows how to process it
+            input_output_pairs.append(
+                InputOutputPair(
+                    input_data=input_config,  # Pass the input_config directly
+                    expected_output=expected_output,
+                    weight=target_config.weight
+                )
+            )
+            
+            logger.info(f"Created input-output pair {i + 1} with weight {target_config.weight}")
+        
+        logger.info(f"Successfully converted {len(input_output_pairs)} file-based configs to input-output pairs")
+        return input_output_pairs
     
     async def optimize_workflow(
         self,
@@ -45,6 +102,16 @@ class AgentOptimizer:
             OptimizationResult with final configuration and metrics
         """
         logger.info("Starting agent workflow optimization")
+        
+        # Convert file-based configs to InputOutputPair objects if provided
+        if optimization_input.input_configs and optimization_input.target_configs:
+            logger.info("Converting file-based input/target configs to input-output pairs")
+            optimization_input.input_output_pairs = await self._convert_file_configs_to_pairs(
+                optimization_input.input_configs,
+                optimization_input.target_configs,
+                optimization_input.job_config,
+                optimization_input.template_config
+            )
         
         # Initialize result
         result = OptimizationResult(
@@ -271,10 +338,13 @@ class AgentOptimizer:
                     
                     if suggestions:
                         # Apply suggestions
+                        # Get number of distinct agent IDs in the current configuration
+                        num_distinct_agents = len(set(agent['name'] for agent in result.final_agent_config.get('agents', [])))
+                        logger.info(f"Applying maximum {num_distinct_agents} suggestions to configuration, total suggestions: {len(suggestions)}")
                         updated_config, applied_suggestions = self.prompt_updater.apply_suggestions(
                             agent_config=result.final_agent_config,
                             suggestions=suggestions,
-                            max_suggestions=3  # Limit to prevent too many changes at once
+                            max_suggestions=num_distinct_agents  # Limit to prevent too many changes at once
                         )
                         
                         # Validate updated configuration

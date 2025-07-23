@@ -13,17 +13,10 @@
     "input_config": {
       "input_files": [
         {
-          "input_path": "core/gpt_caller.py",
+          "input_path": "api/main.py",
           "input_type": "text",
-          "target_agent": []
-        }
-      ],
-      "input_folders": [
-        {
-          "input_path": "tests/resources/folder_test",
           "target_agent": [
-            "QualityAnalyzer",
-            "SecurityAnalyzer"
+            "GeneralCodeAnalysisAgent"
           ]
         }
       ],

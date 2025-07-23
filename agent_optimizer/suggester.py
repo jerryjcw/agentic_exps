@@ -8,7 +8,7 @@ from typing import Dict, Any, List, Optional
 
 from .types import (
     EvaluationResult, PromptSuggestion, OptimizationObjective, 
-    WorkflowTrace, InputOutputPair, LLMServiceError
+    WorkflowTrace, InputOutputPair, LLMServiceError, AgentFeedback
 )
 from .config_loader import get_optimizer_config
 
@@ -234,6 +234,22 @@ class SuggestionGenerator:
                         error_type="format_error",
                         original_response=response
                     )
+                
+                # Convert agent_feedback dictionaries to AgentFeedback objects
+                if 'agent_feedback' in parsed_response and isinstance(parsed_response['agent_feedback'], list):
+                    agent_feedback_objects = []
+                    for feedback_dict in parsed_response['agent_feedback']:
+                        if isinstance(feedback_dict, dict):
+                            agent_feedback_objects.append(AgentFeedback(
+                                agent_id=feedback_dict.get('agent_id', ''),
+                                issue=feedback_dict.get('issue', ''),
+                                evidence=feedback_dict.get('evidence', ''),
+                                suggested_fix=feedback_dict.get('suggested_fix')
+                            ))
+                        else:
+                            # If it's already an AgentFeedback object, keep it
+                            agent_feedback_objects.append(feedback_dict)
+                    parsed_response['agent_feedback'] = agent_feedback_objects
                 
                 return parsed_response
             else:

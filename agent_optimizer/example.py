@@ -1,8 +1,11 @@
 """
-Example usage of the Agent Optimizer system.
+Example usage of the Agent Optimizer system with file-based input/target configuration.
 
 This example demonstrates how to use the agent optimizer to improve
-a simple code analysis workflow.
+a simple code analysis workflow using the new file-based approach where:
+- Input configurations are loaded from files (following flexible_agents format)
+- Target outputs are read from target files using DocumentReader
+- Multiple input/target pairs can be processed with individual weights
 """
 
 import asyncio
@@ -16,8 +19,8 @@ from agent_optimizer import (
     OptimizationInput,
     OptimizationConfig,
     OptimizationObjective,
-    InputOutputPair,
-    AggregationStrategy
+    AggregationStrategy,
+    TargetConfig
 )
 
 # Configure logging
@@ -29,10 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    """Main example function."""
+    """Main example function using file-based input/target configuration."""
     
-    # Load configuration from JSON payload file
-    payload_path = Path(__file__).parent.parent / "api" / "examples" / "nano_code_improvement_payload.json"
+    # Load configuration from the new optimizer payload file
+    payload_path = Path(__file__).parent.parent / "examples" / "optimizer_payload_test.json"
     
     with open(payload_path, 'r') as f:
         payload = json.load(f)
@@ -42,50 +45,48 @@ async def main():
     job_config = payload['job_config']
     template_config = payload['template_config']
     
-    from agent_optimizer.input_data import expected_input, expected_output
-
-    # Define input data and expected output
-    input_data = expected_input
+    # Extract the new input_configs and target_configs
+    input_configs = payload['input_configs']
+    target_configs_data = payload['target_configs']
     
-    expected_output_text = expected_output
-    
-    # Create multiple input-output pairs for comprehensive testing
-    # In this example, we'll use the same input-output pair multiple times with different weights
-    # In practice, you would have different inputs for different test cases
-    input_output_pairs = [
-        InputOutputPair(
-            input_data=input_data,
-            expected_output=expected_output_text,
-            weight=1.0
-        ),
-        # You can add more pairs here for different test cases
-        # InputOutputPair(
-        #     input_data=different_input_data,
-        #     expected_output=different_expected_output,
-        #     weight=1.5  # Higher weight for more important cases
-        # ),
+    # Convert target_configs to TargetConfig objects
+    target_configs = [
+        TargetConfig(
+            target_path=config['target_path'],
+            weight=config.get('weight', 1.0)
+        ) for config in target_configs_data
     ]
     
     # Create optimization configuration
     optimization_config = OptimizationConfig(
         max_iterations=3,
-        convergence_threshold=0.91,
+        convergence_threshold=0.85,
         optimization_objective=OptimizationObjective.ACCURACY,
         enable_tracing=True,
-        aggregation_strategy=AggregationStrategy.AVERAGE  # Use average aggregation
+        aggregation_strategy=AggregationStrategy.AVERAGE,
+        max_llm_retries_per_iteration=2
     )
     
-    # Create optimization input using new format
+    # Create optimization input using new file-based format
     optimization_input = OptimizationInput(
         agent_config=agent_config,
-        input_output_pairs=input_output_pairs,
+        input_output_pairs=[],  # Will be populated from input_configs/target_configs
         config=optimization_config,
         job_config=job_config,
-        template_config=template_config
+        template_config=template_config,
+        input_configs=input_configs,
+        target_configs=target_configs
     )
     
+    # Log configuration details
+    logger.info("Starting agent optimization example with file-based configuration")
+    logger.info(f"Input configs: {len(input_configs)} configuration(s)")
+    logger.info(f"Target configs: {len(target_configs)} target(s)")
+    
+    for i, (input_config, target_config) in enumerate(zip(input_configs, target_configs)):
+        logger.info(f"Pair {i+1}: Input path '{input_config.get('input_folders', [{}])[0].get('input_path', 'N/A')}' -> Target '{target_config.target_path}' (weight: {target_config.weight})")
+    
     # Run optimization
-    logger.info("Starting agent optimization example")
     
     optimizer = AgentOptimizer()
     
@@ -151,51 +152,7 @@ async def main():
         raise
 
 
-async def run_comparison_example():
-    """Example of comparing two configurations."""
-    
-    logger.info("Running configuration comparison example")
-    
-    # Load two different configurations
-    config_path_1 = Path(__file__).parent.parent / "config" / "agent" / "yaml_examples" / "simple_code_improvement.yaml"
-    config_path_2 = Path(__file__).parent.parent / "config" / "agent" / "yaml_examples" / "sequential_agent_config.yaml"
-    
-    with open(config_path_1, 'r') as f:
-        config_a = yaml.safe_load(f)
-    
-    with open(config_path_2, 'r') as f:
-        config_b = yaml.safe_load(f)
-    
-    input_data = "def hello(): print('Hello, World!')"
-    expected_output = "Simple function that prints greeting message."
-    
-    optimizer = AgentOptimizer()
-    
-    try:
-        comparison = await optimizer.compare_configurations(
-            config_a=config_a,
-            config_b=config_b,
-            input_data=input_data,
-            expected_output=expected_output
-        )
-        
-        print("\n" + "="*60)
-        print("CONFIGURATION COMPARISON")
-        print("="*60)
-        
-        print(f"Configuration A Score: {comparison['config_a']['score']:.3f}")
-        print(f"Configuration B Score: {comparison['config_b']['score']:.3f}")
-        print(f"Winner: {comparison['winner']}")
-        print(f"Score Difference: {comparison['score_difference']:.3f}")
-        
-    except Exception as e:
-        logger.error(f"Comparison failed: {str(e)}")
-        raise
-
-
 if __name__ == "__main__":
     # Run the main example
     asyncio.run(main())
     
-    # Uncomment to run comparison example
-    # asyncio.run(run_comparison_example())

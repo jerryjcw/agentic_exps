@@ -134,6 +134,13 @@ class InputOutputPair:
 
 
 @dataclass
+class TargetConfig:
+    """Configuration for target/expected output files."""
+    target_path: str  # Path to the expected output file
+    weight: float = 1.0  # Weight for this target in aggregation
+
+
+@dataclass
 class OptimizationInput:
     """Input data for the optimization process."""
     agent_config: Dict[str, Any]
@@ -141,6 +148,10 @@ class OptimizationInput:
     config: OptimizationConfig = field(default_factory=OptimizationConfig)
     job_config: Optional[Dict[str, Any]] = None
     template_config: Optional[Dict[str, Any]] = None
+    
+    # New file-based configuration
+    input_configs: Optional[List[Dict[str, Any]]] = None
+    target_configs: Optional[List[TargetConfig]] = None
     
     # Backward compatibility - deprecated fields
     input_data: Optional[Any] = None
@@ -159,8 +170,8 @@ class OptimizationInput:
                     )
                 ]
         
-        if not self.input_output_pairs:
-            raise ValueError("Must provide either input_output_pairs or input_data/expected_output")
+        if not self.input_output_pairs and not self.input_configs:
+            raise ValueError("Must provide either input_output_pairs or input_configs/target_configs")
 
 
 class AgentConfigUpdater:
