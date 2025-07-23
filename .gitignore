@@ -1,3 +1,4 @@
 env
 config/apikey
 **/.env
+web/uploaded_files

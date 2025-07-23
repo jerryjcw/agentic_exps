@@ -1,0 +1,13 @@
+cd web && npm install
+npm create vite@latest . -- --template react-ts
+npm install && npm install tailwindcss postcss autoprefixer @types/node lucide-react react-router-dom
+npm install @tailwindcss/postcss 
+npx tailwindcss init -p
+npm install uuid @types/uuid  
+npm run dev
+npm run build
+
+npm install better-sqlite3 @types/better-sqlite3 
+npm install concurrently
+npm run db:start 
+node database-server.cjs &
