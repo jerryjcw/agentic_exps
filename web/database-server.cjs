@@ -56,7 +56,120 @@ db.exec(`
   )
 `);
 
+// Create tools table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    function_name TEXT NOT NULL UNIQUE,
+    class TEXT NOT NULL,
+    module TEXT NOT NULL,
+    function_module TEXT NOT NULL,
+    category TEXT,
+    description TEXT,
+    signature TEXT,
+    registry_module TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 console.log(`📁 Database initialized at: ${DB_PATH}`);
+
+// Load tools from registry on startup - always refresh with latest registry data
+function loadToolsFromRegistry() {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  console.log('🔧 Re-running registry and updating tools database with latest data...');
+  
+  const python = spawn('python3', ['extract-tools.py'], {
+    cwd: path.dirname(DB_PATH),
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+  
+  let output = '';
+  let errorOutput = '';
+  
+  python.stdout.on('data', (data) => {
+    output += data.toString();
+  });
+  
+  python.stderr.on('data', (data) => {
+    errorOutput += data.toString();
+  });
+  
+  python.on('close', (code) => {
+    if (code === 0) {
+      try {
+        const result = JSON.parse(output);
+        if (result.status === 'success' && result.tools) {
+          // ALWAYS clear existing tools and insert fresh ones from registry
+          console.log('🗑️  Clearing existing tools from database...');
+          db.exec('DELETE FROM tools');
+          
+          const insertStmt = db.prepare(`
+            INSERT INTO tools 
+            (function_name, class, module, function_module, category, description, signature, registry_module)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `);
+          
+          const insertMany = db.transaction((tools) => {
+            for (const tool of tools) {
+              insertStmt.run(
+                tool.function_name,
+                tool.class,
+                tool.module,
+                tool.function_module,
+                tool.category || 'general',
+                tool.description || '',
+                tool.signature || '',
+                tool.registry_module || ''
+              );
+            }
+          });
+          
+          insertMany(result.tools);
+          console.log(`✅ Successfully refreshed database with ${result.tools.length} tools from registry`);
+          
+          // List loaded tools with their categories
+          const toolsByCategory = {};
+          result.tools.forEach(tool => {
+            const category = tool.category || 'general';
+            if (!toolsByCategory[category]) {
+              toolsByCategory[category] = [];
+            }
+            toolsByCategory[category].push(tool.function_name);
+          });
+          
+          Object.entries(toolsByCategory).forEach(([category, tools]) => {
+            console.log(`   📁 ${category}: ${tools.join(', ')}`);
+          });
+          
+          console.log('🔄 Tools database is now synchronized with the latest registry');
+        } else {
+          console.error('❌ Failed to load tools from registry:', result.error || 'Unknown error');
+          console.error('🔧 Please check the tool registry at tools/gadk/');
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse tool registry output:', parseError.message);
+        console.error('Raw output:', output);
+      }
+    } else {
+      console.error('❌ Tool extraction failed with exit code:', code);
+      console.error('Error output:', errorOutput);
+      console.error('🔧 Please check that Python environment and tools/gadk/ are accessible');
+    }
+  });
+  
+  python.on('error', (error) => {
+    console.error('❌ Failed to spawn Python process:', error.message);
+    console.error('🔧 Please ensure Python3 is installed and accessible');
+  });
+}
+
+// ALWAYS load fresh tools from registry on every database startup
+// This ensures the database is synchronized with the latest tool registry changes
+loadToolsFromRegistry();
 
 // CORS headers
 const corsHeaders = {
@@ -202,6 +315,17 @@ const routes = {
       sendError(res, err.message, 500);
     }
   },
+  // GET /api/tools - Get all available tools
+  'GET /api/tools': (req, res) => {
+    try {
+      const stmt = db.prepare('SELECT * FROM tools ORDER BY category, function_name');
+      const tools = stmt.all();
+      sendJSON(res, tools);
+    } catch (err) {
+      sendError(res, err.message, 500);
+    }
+  },
+
   // GET /api/configurations - Get all configurations
   'GET /api/configurations': (req, res) => {
     try {
@@ -342,6 +466,7 @@ server.listen(PORT, () => {
   console.log(`📊 Available endpoints:`);
   console.log(`   GET    /api/system/info          - Get system information and paths`);
   console.log(`   POST   /api/files/save           - Save uploaded file to disk`);
+  console.log(`   GET    /api/tools                - Get all available tools`);
   console.log(`   GET    /api/configurations        - List all configurations`);
   console.log(`   GET    /api/configurations/:id    - Get configuration by ID`);
   console.log(`   POST   /api/configurations        - Create/update configuration`);

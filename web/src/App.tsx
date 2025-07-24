@@ -61,7 +61,7 @@ function App() {
       
       console.log('🔍 Converting config with agents:', config.agents.length);
       
-      const workflowRequest = convertToWorkflowRequest(config);
+      const workflowRequest = await convertToWorkflowRequest(config);
       const formattedJson = JSON.stringify(workflowRequest, null, 2);
       
       console.log('✅ JSON generated successfully - length:', formattedJson.length);

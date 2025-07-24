@@ -63,7 +63,7 @@ export const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className={`resize-none overflow-hidden ${className}`}
+      className={`resize-none overflow-y-auto custom-scrollbar ${className}`}
       style={{
         minHeight: `${minRows * 1.5}rem`,
         maxHeight: `${maxRows * 1.5}rem`,

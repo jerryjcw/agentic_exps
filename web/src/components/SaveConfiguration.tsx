@@ -47,7 +47,7 @@ const SaveConfiguration: React.FC<SaveConfigurationProps> = ({ config, onSaveSuc
 
     try {
       // Convert workflow config to JSON format
-      const jsonConfig = convertToJSON(config);
+      const jsonConfig = await convertToJSON(config);
       
       const now = new Date().toISOString();
       const configToSave = {

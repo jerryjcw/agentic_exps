@@ -8,6 +8,20 @@ export interface InputFile {
   is_binary?: boolean;
 }
 
+export interface ToolInfo {
+  id: number;
+  function_name: string;
+  class: string;
+  module: string;
+  function_module: string;
+  category?: string;
+  description?: string;
+  signature?: string;
+  registry_module?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Agent {
   id: string;
   name: string;

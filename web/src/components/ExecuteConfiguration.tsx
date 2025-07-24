@@ -31,7 +31,7 @@ const ExecuteConfiguration: React.FC<ExecuteConfigurationProps> = ({ config }) =
 
     try {
       // Convert workflow config to JSON format
-      const jsonConfig = convertToJSON(config);
+      const jsonConfig = await convertToJSON(config);
       
       const response = await fetch(apiEndpoint.trim(), {
         method: 'POST',
@@ -64,7 +64,16 @@ const ExecuteConfiguration: React.FC<ExecuteConfigurationProps> = ({ config }) =
     }
   };
 
-  const configJson = config.agents.length > 0 ? convertToJSON(config) : null;
+  const [configJson, setConfigJson] = useState<any>(null);
+  
+  // Update JSON preview when config changes
+  React.useEffect(() => {
+    if (config.agents.length > 0) {
+      convertToJSON(config).then(setConfigJson).catch(console.error);
+    } else {
+      setConfigJson(null);
+    }
+  }, [config]);
 
   return (
     <div className="py-8 px-6">
@@ -249,13 +258,95 @@ const ExecuteConfiguration: React.FC<ExecuteConfigurationProps> = ({ config }) =
                             <div className="bg-green-100 px-4 py-2 border-b border-green-200">
                               <h5 className="font-medium text-green-800 flex items-center">
                                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                                Workflow Result (JSON)
+                                Workflow Execution Results
                               </h5>
                             </div>
                             <div className="p-4 max-h-96 overflow-y-auto custom-scrollbar">
-                              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
-                                {JSON.stringify(jsonData, null, 2)}
-                              </pre>
+                              {/* Human-readable field extraction */}
+                              <div className="space-y-4">
+                                {jsonData.status && (
+                                  <div className="bg-blue-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-blue-800 text-sm mb-1">Status</div>
+                                    <div className="text-blue-700">{jsonData.status}</div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.result && (
+                                  <div className="bg-emerald-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-emerald-800 text-sm mb-1">Result</div>
+                                    <div className="text-emerald-700 whitespace-pre-wrap">{typeof jsonData.result === 'string' ? jsonData.result : JSON.stringify(jsonData.result, null, 2)}</div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.output && (
+                                  <div className="bg-purple-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-purple-800 text-sm mb-1">Output</div>
+                                    <div className="text-purple-700 whitespace-pre-wrap">{typeof jsonData.output === 'string' ? jsonData.output : JSON.stringify(jsonData.output, null, 2)}</div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.execution_time && (
+                                  <div className="bg-orange-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-orange-800 text-sm mb-1">Execution Time</div>
+                                    <div className="text-orange-700">{jsonData.execution_time}s</div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.steps && Array.isArray(jsonData.steps) && (
+                                  <div className="bg-indigo-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-indigo-800 text-sm mb-2">Execution Steps ({jsonData.steps.length})</div>
+                                    <div className="space-y-2">
+                                      {jsonData.steps.map((step: any, index: number) => (
+                                        <div key={index} className="bg-white p-2 rounded border-l-2 border-indigo-300">
+                                          <div className="text-xs text-indigo-600 font-medium">Step {index + 1}</div>
+                                          <div className="text-indigo-800 text-sm">{typeof step === 'string' ? step : JSON.stringify(step)}</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.errors && (
+                                  <div className="bg-red-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-red-800 text-sm mb-1">Errors</div>
+                                    <div className="text-red-700 whitespace-pre-wrap">{Array.isArray(jsonData.errors) ? jsonData.errors.join('\n') : jsonData.errors}</div>
+                                  </div>
+                                )}
+                                
+                                {jsonData.metadata && (
+                                  <div className="bg-gray-50 p-3 rounded-lg">
+                                    <div className="font-semibold text-gray-800 text-sm mb-1">Metadata</div>
+                                    <div className="text-gray-700 text-xs font-mono">{JSON.stringify(jsonData.metadata, null, 2)}</div>
+                                  </div>
+                                )}
+                                
+                                {/* Show any other fields not covered above */}
+                                {(() => {
+                                  const knownFields = ['status', 'result', 'output', 'execution_time', 'steps', 'errors', 'metadata'];
+                                  const otherFields = Object.keys(jsonData).filter(key => !knownFields.includes(key));
+                                  if (otherFields.length > 0) {
+                                    return (
+                                      <div className="bg-yellow-50 p-3 rounded-lg">
+                                        <div className="font-semibold text-yellow-800 text-sm mb-1">Additional Fields</div>
+                                        <div className="text-yellow-700 text-xs font-mono whitespace-pre-wrap">
+                                          {JSON.stringify(Object.fromEntries(otherFields.map(key => [key, jsonData[key]])), null, 2)}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                                
+                                {/* Raw JSON toggle */}
+                                <details className="bg-gray-50 p-3 rounded-lg">
+                                  <summary className="font-semibold text-gray-800 text-sm cursor-pointer hover:text-gray-600">
+                                    View Raw JSON
+                                  </summary>
+                                  <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono leading-relaxed mt-2 p-2 bg-gray-100 rounded">
+                                    {JSON.stringify(jsonData, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
                             </div>
                           </div>
                         );
