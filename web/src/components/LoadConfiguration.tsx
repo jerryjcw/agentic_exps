@@ -64,18 +64,41 @@ const LoadConfiguration: React.FC<LoadConfigurationProps> = ({ onConfigurationLo
 
   const handleDeleteConfiguration = async (id: number) => {
     try {
+      console.log(`🗑️ Attempting to delete configuration with ID: ${id}`);
       const success = await deleteConfiguration(id);
+      console.log(`🗑️ Delete result: ${success}`);
+      
       if (success) {
-        setConfigurations(prev => prev.filter(config => config.id !== id));
+        console.log(`✅ Successfully deleted configuration ${id}, updating UI state`);
+        
+        // Update configurations list by removing the deleted item
+        setConfigurations(prev => {
+          const filtered = prev.filter(config => config.id !== id);
+          console.log(`📋 Updated configurations list: ${filtered.length} items remaining`);
+          return filtered;
+        });
+        
+        // Close delete confirmation modal
         setShowDeleteConfirm(null);
+        
+        // Clear selected config if it was the deleted one
         if (selectedConfig && selectedConfig.id === id) {
+          console.log(`🔄 Clearing selected config as it was deleted`);
           setSelectedConfig(null);
         }
+        
+        // Clear any existing errors
+        setError(null);
+        
+        console.log(`✅ Configuration ${id} deleted successfully`);
       } else {
+        console.error(`❌ Delete failed for configuration ${id}`);
         setError('Failed to delete configuration');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete configuration');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete configuration';
+      console.error(`❌ Error deleting configuration ${id}:`, errorMessage);
+      setError(errorMessage);
     }
   };
 
@@ -381,26 +404,34 @@ const LoadConfiguration: React.FC<LoadConfigurationProps> = ({ onConfigurationLo
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slide-up">
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Delete</h3>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to delete this configuration? This action cannot be undone.
-                </p>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setShowDeleteConfirm(null)}
-                    className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleDeleteConfiguration(showDeleteConfirm)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Delete
-                  </button>
+          <div 
+            className="absolute inset-0 bg-black bg-opacity-50 z-[9999] overflow-y-auto"
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <div 
+              className="flex min-h-full items-center justify-center p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-slide-up">
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Delete</h3>
+                  <p className="text-gray-600 mb-6">
+                    Are you sure you want to delete this configuration? This action cannot be undone.
+                  </p>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(null)}
+                      className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDeleteConfiguration(showDeleteConfirm)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
