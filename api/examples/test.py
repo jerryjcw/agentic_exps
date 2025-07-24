@@ -1,3 +1,4 @@
+data = '''
 {
   "job_config": {
     "job_name": "SimpleCodeImprovementAnalysis",
@@ -94,14 +95,6 @@
         "model": "openai/gpt-4o",
         "instruction": "You are a technical lead responsible for synthesizing improvement recommendations. \nBased on the code analysis and identified issues, create a prioritized list of actionable improvements. \nInclude: \n  1) High-priority security fixes, \n  2) Performance optimizations, \n  3) Code quality improvements, \n  4) Refactoring suggestions. \nProvide clear implementation steps and expected benefits for each recommendation.\"\n",
         "description": "Synthesizes and prioritizes improvement recommendations",
-        "tools": [
-          {
-            "class": "FunctionTool",
-            "module": "google.adk.tools",
-            "function_name": "get_current_time_tool",
-            "function_module": "tools.gadk.tools"
-          }
-        ],
         "output_key": "improvement_recommendations"
       }
     ]
@@ -152,3 +145,18 @@
     }
   }
 }
+'''
+
+if __name__ == "__main__":
+    # Load the JSON data
+    import json
+    workflow_data = json.loads(data)
+
+    # Print the loaded data
+    print("Workflow Data:")
+    print(json.dumps(workflow_data, indent=4))
+
+    # Example of accessing specific parts of the data
+    print("\nJob Name:", workflow_data['job_config']['job_name'])
+    print("Agent Name:", workflow_data['agent_config']['name'])
+    print("Template Name:", workflow_data['template_config']['template_name'])

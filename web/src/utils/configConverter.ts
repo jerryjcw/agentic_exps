@@ -1,10 +1,10 @@
-import type { WorkflowConfig, AgentType, Agent, WorkflowRequest, JobConfig, TemplateConfig } from '../types';
+import type { WorkflowConfig, AgentType, Agent, WorkflowRequest, JobConfig, TemplateConfig, ToolInfo } from '../types';
 
-export const convertToJSON = (config: WorkflowConfig): WorkflowRequest => {
-  return convertToWorkflowRequest(config);
+export const convertToJSON = async (config: WorkflowConfig): Promise<WorkflowRequest> => {
+  return await convertToWorkflowRequest(config);
 };
 
-export const convertToWorkflowRequest = (config: WorkflowConfig): WorkflowRequest => {
+export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<WorkflowRequest> => {
 
   // Get first agent info for job naming
   const firstAgent = config.agents[0];
@@ -85,7 +85,7 @@ export const convertToWorkflowRequest = (config: WorkflowConfig): WorkflowReques
   
   if (config.agents.length === 1) {
     // Single root agent - use it directly
-    agentConfig = cleanAgentForExport(config.agents[0], config.useInternalModels);
+    agentConfig = await cleanAgentForExport(config.agents[0], config.useInternalModels);
   } else if (config.agents.length > 1) {
     // Multiple root agents - create minimal sequential wrapper
     agentConfig = {
@@ -93,7 +93,7 @@ export const convertToWorkflowRequest = (config: WorkflowConfig): WorkflowReques
       class: 'SequentialAgent',
       module: 'google.adk.agents',
       description: 'Root workflow',
-      sub_agents: config.agents.map(agent => cleanAgentForExport(agent, config.useInternalModels))
+      sub_agents: await Promise.all(config.agents.map(agent => cleanAgentForExport(agent, config.useInternalModels)))
     };
   } else {
     // No agents - create empty sequential agent
@@ -147,7 +147,7 @@ const extractAllInputFiles = (agents: AgentType[]): any[] => {
   return allFiles;
 };
 
-const cleanAgentForExport = (agent: AgentType, useInternalModels = false): any => {
+const cleanAgentForExport = async (agent: AgentType, useInternalModels = false): Promise<any> => {
   const cleaned: any = {
     name: agent.name,
     class: agent.class,
@@ -163,7 +163,40 @@ const cleanAgentForExport = (agent: AgentType, useInternalModels = false): any =
     cleaned.output_key = agentTyped.output_key || agentTyped.name;
     
     if (agentTyped.tools && agentTyped.tools.length > 0) {
-      cleaned.tools = agentTyped.tools;
+      // Load tool information from database to get full tool details
+      try {
+        const toolsInfo = await loadToolsInfo();
+        const toolsMap = new Map(toolsInfo.map(t => [t.function_name, t]));
+        
+        cleaned.tools = agentTyped.tools.map(toolName => {
+          const toolInfo = toolsMap.get(toolName);
+          if (toolInfo) {
+            return {
+              class: toolInfo.class,
+              module: toolInfo.module,
+              function_name: toolInfo.function_name,
+              function_module: toolInfo.function_module
+            };
+          } else {
+            // Fallback if tool not found in database
+            return {
+              class: 'FunctionTool',
+              module: 'google.adk.tools',
+              function_name: toolName,
+              function_module: `tools.gadk.${toolName.replace('_tool', '')}`
+            };
+          }
+        });
+      } catch (error) {
+        console.error('Error loading tool info for export:', error);
+        // Fallback to simple tool format
+        cleaned.tools = agentTyped.tools.map(toolName => ({
+          class: 'FunctionTool',
+          module: 'google.adk.tools',
+          function_name: toolName,
+          function_module: `tools.gadk.${toolName.replace('_tool', '')}`
+        }));
+      }
     } else {
       cleaned.tools = [];
     }
@@ -176,21 +209,43 @@ const cleanAgentForExport = (agent: AgentType, useInternalModels = false): any =
     }
     
     if (containerAgent.sub_agents) {
-      cleaned.sub_agents = containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels));
+      cleaned.sub_agents = await Promise.all(
+        containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels))
+      );
     }
   }
 
   return cleaned;
 };
 
+// Load full tool information from database
+export const loadToolsInfo = async (): Promise<ToolInfo[]> => {
+  try {
+    const response = await fetch('http://localhost:3001/api/tools');
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to load tools from database:', error);
+    return [];
+  }
+};
+
 export const loadAvailableTools = async (): Promise<string[]> => {
-  // This would normally fetch from the Python registry
-  // For now, return the tools we know exist based on the registry file
-  return [
-    'get_current_time_tool',
-    'get_temperature_tool', 
-    'google_search_tool',
-    'get_earnings_report_tool',
-    'get_company_news_tool'
-  ];
+  try {
+    const tools = await loadToolsInfo();
+    return tools.map(tool => tool.function_name);
+  } catch (error) {
+    console.error('Failed to load tools from database:', error);
+    // Fallback to hardcoded tools if API fails
+    return [
+      'get_current_time_tool',
+      'get_temperature_tool', 
+      'google_search_tool',
+      'get_earnings_report_tool',
+      'get_company_news_tool'
+    ];
+  }
 };

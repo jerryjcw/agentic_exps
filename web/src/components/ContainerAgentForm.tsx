@@ -80,19 +80,14 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
               <textarea
                 value={agent.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className="min-w-32 max-w-md p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-hidden"
+                className="min-w-32 max-w-md p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-y-auto custom-scrollbar"
                 style={{ 
                   width: `${Math.max(12, Math.min(40, (agent.name?.length || 12) + 4))}ch`,
-                  minHeight: '2.5rem',
-                  height: `${Math.max(2.5, (agent.name || '').split('\n').length * 1.5)}rem`
+                  height: '2rem',
+                  maxHeight: '4.5rem'
                 }}
                 placeholder="Enter agent name"
                 required
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = 'auto';
-                  target.style.height = `${Math.max(40, target.scrollHeight)}px`;
-                }}
               />
             </div>
 
@@ -103,18 +98,22 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
               <textarea
                 value={agent.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                className="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-hidden"
+                className="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-y-auto custom-scrollbar"
                 style={{ 
                   width: '70%',
-                  minHeight: '2.5rem',
-                  height: `${Math.max(2.5, (agent.description || '').split('\n').length * 1.5)}rem`
+                  minHeight: '4.5rem',
+                  height: `${Math.min(300, Math.max(4.5, (agent.description || '').split('\n').length * 1.5))}rem`,
+                  maxHeight: '300rem'
                 }}
                 placeholder="Brief description of this agent"
                 required
                 onInput={(e) => {
                   const target = e.target as HTMLTextAreaElement;
+                  const lines = target.value.split('\n').length;
+                  const maxLines = 200;
+                  const lineHeight = 1.5;
                   target.style.height = 'auto';
-                  target.style.height = `${Math.max(40, target.scrollHeight)}px`;
+                  target.style.height = `${Math.min(maxLines * lineHeight, Math.max(4.5, lines * lineHeight))}rem`;
                 }}
               />
             </div>
