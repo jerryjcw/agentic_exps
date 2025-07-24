@@ -54,6 +54,7 @@ export type AgentType = Agent | SequentialAgent | LoopAgent | ParallelAgent;
 export interface WorkflowConfig {
   systemPrompt: string;
   agents: AgentType[];
+  useInternalModels?: boolean;
 }
 
 export interface JobConfig {

@@ -47,7 +47,7 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
   };
 
   return (
-    <div className={`border rounded-lg p-4 shadow-sm ${getAgentTypeColor()}`}>
+    <div className={`border rounded-lg shadow-sm ${getAgentTypeColor()}`} style={{ padding: '3%' }}>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
           <button
@@ -72,18 +72,27 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
 
       {isExpanded && (
         <>
-          <div className="grid grid-cols-1 gap-4 mb-4">
+          <div className="grid grid-cols-1 gap-4 mb-4" style={{ padding: '3%' }}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Name *
               </label>
-              <input
-                type="text"
+              <textarea
                 value={agent.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                className="min-w-32 max-w-md p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-hidden"
+                style={{ 
+                  width: `${Math.max(12, Math.min(40, (agent.name?.length || 12) + 4))}ch`,
+                  minHeight: '2.5rem',
+                  height: `${Math.max(2.5, (agent.name || '').split('\n').length * 1.5)}rem`
+                }}
                 placeholder="Enter agent name"
                 required
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = `${Math.max(40, target.scrollHeight)}px`;
+                }}
               />
             </div>
 
@@ -91,13 +100,22 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Description *
               </label>
-              <input
-                type="text"
+              <textarea
                 value={agent.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                className="p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white resize-none overflow-hidden"
+                style={{ 
+                  width: '70%',
+                  minHeight: '2.5rem',
+                  height: `${Math.max(2.5, (agent.description || '').split('\n').length * 1.5)}rem`
+                }}
                 placeholder="Brief description of this agent"
                 required
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = `${Math.max(40, target.scrollHeight)}px`;
+                }}
               />
             </div>
 
@@ -110,7 +128,8 @@ export const ContainerAgentForm: React.FC<ContainerAgentFormProps> = ({
                   type="number"
                   value={agent.max_iterations}
                   onChange={(e) => handleInputChange('max_iterations', parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  className="min-w-20 max-w-32 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  style={{ width: `${Math.max(4, Math.min(10, String(agent.max_iterations || 1).length + 2))}ch` }}
                   min="1"
                   required
                 />
