@@ -51,12 +51,16 @@ export const getConfigurationByName = async (name: string): Promise<SavedConfigu
 
 export const deleteConfiguration = async (id: number): Promise<boolean> => {
   try {
-    await apiRequest(`/configurations/${id}`, {
+    console.log(`🔗 Making DELETE request to /configurations/${id}`);
+    const result = await apiRequest(`/configurations/${id}`, {
       method: 'DELETE',
     });
+    console.log(`✅ DELETE request successful:`, result);
     return true;
   } catch (error) {
+    console.error(`❌ DELETE request failed:`, error);
     if (error instanceof Error && error.message.includes('404')) {
+      console.log(`📝 Configuration ${id} not found (404)`);
       return false;
     }
     throw error;
