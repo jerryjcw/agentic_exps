@@ -94,7 +94,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({
   };
 
   return (
-    <div className="border border-blue-200 rounded-xl p-6 bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg transition-shadow">
+    <div className="border border-blue-200 rounded-xl bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg transition-shadow" style={{ padding: '3%' }}>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -111,18 +111,27 @@ export const AgentForm: React.FC<AgentFormProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-2 gap-6" style={{ padding: '3%' }}>
         <div>
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             Agent Name *
           </label>
-          <input
-            type="text"
+          <textarea
             value={agent.name}
             onChange={(e) => handleInputChange('name', e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            className="min-w-32 max-w-md p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm resize-none overflow-hidden"
+            style={{ 
+              width: `${Math.max(12, Math.min(40, (agent.name?.length || 12) + 4))}ch`,
+              minHeight: '3rem',
+              height: `${Math.max(3, (agent.name || '').split('\n').length * 1.5)}rem`
+            }}
             placeholder="Enter agent name"
             required
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${Math.max(48, target.scrollHeight)}px`;
+            }}
           />
         </div>
 
@@ -133,7 +142,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({
           <select
             value={agent.model}
             onChange={(e) => handleInputChange('model', e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            className="max-w-md p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
           >
             <option value="gpt-4o">gpt-4o</option>
             <option value="gpt-4.1">gpt-4.1</option>
@@ -144,13 +153,22 @@ export const AgentForm: React.FC<AgentFormProps> = ({
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             Description *
           </label>
-          <input
-            type="text"
+          <textarea
             value={agent.description}
             onChange={(e) => handleInputChange('description', e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm resize-none overflow-hidden"
+            style={{ 
+              width: '70%',
+              minHeight: '3rem',
+              height: `${Math.max(3, (agent.description || '').split('\n').length * 1.5)}rem`
+            }}
             placeholder="Brief description of the agent"
             required
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${Math.max(48, target.scrollHeight)}px`;
+            }}
           />
         </div>
 
@@ -162,7 +180,8 @@ export const AgentForm: React.FC<AgentFormProps> = ({
             value={agent.instruction}
             onChange={(value) => handleInputChange('instruction', value)}
             placeholder="Enter the prompt/instruction for this agent"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm font-mono text-sm"
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm font-mono text-sm"
+            style={{ width: '70%' }}
             minRows={3}
           />
         </div>
@@ -171,12 +190,21 @@ export const AgentForm: React.FC<AgentFormProps> = ({
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             Output Key
           </label>
-          <input
-            type="text"
+          <textarea
             value={agent.output_key || ''}
             onChange={(e) => handleInputChange('output_key', e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm"
+            className="min-w-32 max-w-md p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm resize-none overflow-hidden"
+            style={{ 
+              width: `${Math.max(12, Math.min(40, ((agent.output_key?.length || agent.name?.length) || 12) + 4))}ch`,
+              minHeight: '3rem',
+              height: `${Math.max(3, (agent.output_key || '').split('\n').length * 1.5)}rem`
+            }}
             placeholder={`Default: ${agent.name}`}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = 'auto';
+              target.style.height = `${Math.max(48, target.scrollHeight)}px`;
+            }}
           />
         </div>
 
@@ -184,7 +212,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({
           <label className="block text-sm font-semibold text-gray-800 mb-2">
             Tools
           </label>
-          <div className="space-y-3 bg-gray-50 rounded-lg p-4">
+          <div className="space-y-3 bg-gray-50 rounded-lg" style={{ padding: '3%' }}>
             {availableTools.map(tool => (
               <label key={tool} className="flex items-center cursor-pointer hover:bg-white rounded p-2 transition-colors">
                 <input
@@ -253,7 +281,7 @@ export const AgentForm: React.FC<AgentFormProps> = ({
             )}
             
             {(agent.input_files || []).map((file, index) => (
-              <div key={index} className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg border">
+              <div key={index} className="flex items-start gap-3 bg-gray-50 rounded-lg border" style={{ padding: '3%' }}>
                 <File size={18} className="text-gray-500 mt-1" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

@@ -153,7 +153,7 @@ export const AgentList: React.FC<AgentListProps> = ({
       <div className="relative">
         <button
           onClick={() => setShowAddMenu(!showAddMenu)}
-          className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 w-full justify-center"
+          className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 hover:bg-gray-50 w-full justify-center min-h-[30px]"
         >
           <Plus size={16} />
           Add Agent
@@ -161,52 +161,40 @@ export const AgentList: React.FC<AgentListProps> = ({
         </button>
 
         {showAddMenu && (
-          <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-20 w-96">
+          <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-50 w-[30%]">
             <div className="p-4">
               <button
                 onClick={() => createNewAgent('Agent')}
-                className="w-full text-left px-5 py-4 hover:bg-gray-100 rounded-lg flex items-center"
+                className="w-full text-left px-6 py-4 hover:bg-gray-100 rounded-lg flex items-center gap-4 min-h-[30px]"
               >
-                <div className="flex items-center gap-4 flex-1">
-                  <span className="text-blue-600 font-bold text-lg">•</span>
-                  <span className="font-medium whitespace-nowrap min-w-0 flex-shrink-0">Agent</span>
-                </div>
-                <span className="text-sm text-gray-500 ml-12 flex-shrink-0">Base agent</span>
+                <span className="text-blue-600 font-bold text-lg">•</span>
+                <span className="font-medium">Agent</span>
               </button>
               
               {canAddContainerAgents && (
                 <>
                   <button
                     onClick={() => createNewAgent('SequentialAgent')}
-                    className="w-full text-left px-5 py-4 hover:bg-gray-100 rounded-lg flex items-center"
+                    className="w-full text-left px-6 py-4 hover:bg-gray-100 rounded-lg flex items-center gap-4 min-h-[30px]"
                   >
-                    <div className="flex items-center gap-4 flex-1">
-                      <span className="text-green-600 font-bold text-lg">→</span>
-                      <span className="font-medium whitespace-nowrap min-w-0 flex-shrink-0">SequentialAgent</span>
-                    </div>
-                    <span className="text-sm text-gray-500 ml-12 flex-shrink-0">Execute in sequence</span>
+                    <span className="text-green-600 font-bold text-lg">→</span>
+                    <span className="font-medium">SequentialAgent</span>
                   </button>
                   
                   <button
                     onClick={() => createNewAgent('LoopAgent')}
-                    className="w-full text-left px-5 py-4 hover:bg-gray-100 rounded-lg flex items-center"
+                    className="w-full text-left px-6 py-4 hover:bg-gray-100 rounded-lg flex items-center gap-4 min-h-[30px]"
                   >
-                    <div className="flex items-center gap-4 flex-1">
-                      <span className="text-orange-600 font-bold text-lg">↻</span>
-                      <span className="font-medium whitespace-nowrap min-w-0 flex-shrink-0">LoopAgent</span>
-                    </div>
-                    <span className="text-sm text-gray-500 ml-12 flex-shrink-0">Execute with iterations</span>
+                    <span className="text-orange-600 font-bold text-lg">↻</span>
+                    <span className="font-medium">LoopAgent</span>
                   </button>
                   
                   <button
                     onClick={() => createNewAgent('ParallelAgent')}
-                    className="w-full text-left px-5 py-4 hover:bg-gray-100 rounded-lg flex items-center"
+                    className="w-full text-left px-6 py-4 hover:bg-gray-100 rounded-lg flex items-center gap-4 min-h-[30px]"
                   >
-                    <div className="flex items-center gap-4 flex-1">
-                      <span className="text-purple-600 font-bold text-lg">‖</span>
-                      <span className="font-medium whitespace-nowrap min-w-0 flex-shrink-0">ParallelAgent</span>
-                    </div>
-                    <span className="text-sm text-gray-500 ml-12 flex-shrink-0">Execute in parallel</span>
+                    <span className="text-purple-600 font-bold text-lg">‖</span>
+                    <span className="font-medium">ParallelAgent</span>
                   </button>
                 </>
               )}

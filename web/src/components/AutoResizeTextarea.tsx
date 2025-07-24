@@ -5,6 +5,7 @@ interface AutoResizeTextareaProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
   minRows?: number;
   maxRows?: number;
   disabled?: boolean;
@@ -15,6 +16,7 @@ export const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
   onChange,
   placeholder,
   className = '',
+  style,
   minRows = 2,
   maxRows = 10,
   disabled = false
@@ -65,6 +67,7 @@ export const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
       style={{
         minHeight: `${minRows * 1.5}rem`,
         maxHeight: `${maxRows * 1.5}rem`,
+        ...style
       }}
       onInput={adjustHeight}
       rows={minRows}

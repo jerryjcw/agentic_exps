@@ -5,20 +5,16 @@ export const convertToJSON = (config: WorkflowConfig): WorkflowRequest => {
 };
 
 export const convertToWorkflowRequest = (config: WorkflowConfig): WorkflowRequest => {
-  // Create the main agent config (wrapper for root agents)
-  const mainAgentConfig: AgentType = {
-    id: 'main',
-    name: 'MainWorkflow',
-    class: 'SequentialAgent',
-    module: 'google.adk.agents',
-    description: 'Main workflow containing all agents',
-    sub_agents: config.agents
-  };
+
+  // Get first agent info for job naming
+  const firstAgent = config.agents[0];
+  const defaultJobName = firstAgent ? firstAgent.name || 'WebUIWorkflow' : 'WebUIWorkflow';
+  const defaultJobDescription = firstAgent ? firstAgent.description || 'Workflow created from Web UI' : 'Workflow created from Web UI';
 
   // Create job config with defaults
   const jobConfig: JobConfig = {
-    job_name: 'WebUIWorkflow',
-    job_description: 'Workflow created from Web UI',
+    job_name: defaultJobName,
+    job_description: defaultJobDescription,
     job_type: 'workflow_execution',
     runner_config: {
       app_name: 'WebUIWorkflow',
@@ -84,9 +80,35 @@ export const convertToWorkflowRequest = (config: WorkflowConfig): WorkflowReques
     }
   };
 
+  // Handle agent config based on number of root agents
+  let agentConfig: any;
+  
+  if (config.agents.length === 1) {
+    // Single root agent - use it directly
+    agentConfig = cleanAgentForExport(config.agents[0], config.useInternalModels);
+  } else if (config.agents.length > 1) {
+    // Multiple root agents - create minimal sequential wrapper
+    agentConfig = {
+      name: 'RootWorkflow',
+      class: 'SequentialAgent',
+      module: 'google.adk.agents',
+      description: 'Root workflow',
+      sub_agents: config.agents.map(agent => cleanAgentForExport(agent, config.useInternalModels))
+    };
+  } else {
+    // No agents - create empty sequential agent
+    agentConfig = {
+      name: 'EmptyWorkflow',
+      class: 'SequentialAgent',
+      module: 'google.adk.agents',
+      description: 'Empty workflow',
+      sub_agents: []
+    };
+  }
+  
   return {
     job_config: jobConfig,
-    agent_config: cleanAgentForExport(mainAgentConfig),
+    agent_config: agentConfig,
     template_config: templateConfig
   };
 };
@@ -99,11 +121,17 @@ const extractAllInputFiles = (agents: AgentType[]): any[] => {
       const agentTyped = agent as Agent;
       if (agentTyped.input_files) {
         // Convert our InputFile format to the expected API format
-        const apiFiles = agentTyped.input_files.map(file => ({
-          input_path: file.input_path,
-          input_type: file.input_type,
-          target_agent: file.target_agent
-        }));
+        const apiFiles = agentTyped.input_files.map(file => {
+          // Use the original filename without timestamp prefix
+          const uploadDirPattern = /\/uploaded_files\/\d+_/;
+          const cleanPath = file.input_path.replace(uploadDirPattern, '/uploaded_files/');
+          
+          return {
+            input_path: cleanPath,
+            input_type: file.input_type,
+            target_agent: file.target_agent
+          };
+        });
         allFiles.push(...apiFiles);
       }
     } else {
@@ -119,7 +147,7 @@ const extractAllInputFiles = (agents: AgentType[]): any[] => {
   return allFiles;
 };
 
-const cleanAgentForExport = (agent: AgentType): any => {
+const cleanAgentForExport = (agent: AgentType, useInternalModels = false): any => {
   const cleaned: any = {
     name: agent.name,
     class: agent.class,
@@ -129,7 +157,8 @@ const cleanAgentForExport = (agent: AgentType): any => {
 
   if (agent.class === 'Agent') {
     const agentTyped = agent as Agent;
-    cleaned.model = `openai/${agentTyped.model}`;
+    const modelPrefix = useInternalModels ? 'internal' : 'openai';
+    cleaned.model = `${modelPrefix}/${agentTyped.model}`;
     cleaned.instruction = agentTyped.instruction;
     cleaned.output_key = agentTyped.output_key || agentTyped.name;
     
@@ -147,7 +176,7 @@ const cleanAgentForExport = (agent: AgentType): any => {
     }
     
     if (containerAgent.sub_agents) {
-      cleaned.sub_agents = containerAgent.sub_agents.map(cleanAgentForExport);
+      cleaned.sub_agents = containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels));
     }
   }
 
