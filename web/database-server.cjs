@@ -216,7 +216,12 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 function saveFile(fileData) {
   try {
-    const fileName = fileData.originalName || `file_${fileData.timestamp}`;
+    const rawFileName = fileData.originalName || `file_${fileData.timestamp}`;
+    // Sanitize filename to match frontend behavior - replace spaces and special chars with underscores
+    const sanitizedName = rawFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Add timestamp prefix to match frontend path generation
+    const timestamp = fileData.timestamp || Date.now();
+    const fileName = `${timestamp}_${sanitizedName}`;
     const filePath = path.join(UPLOAD_DIR, fileName);
     
     // Handle binary files (base64 encoded) vs text files

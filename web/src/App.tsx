@@ -5,7 +5,7 @@ import SaveConfiguration from './components/SaveConfiguration';
 import LoadConfiguration from './components/LoadConfiguration';
 import ExecuteConfiguration from './components/ExecuteConfiguration';
 import { convertToWorkflowRequest } from './utils/configConverter';
-import { uploadFilesToServer, createFileManifest } from './utils/fileStorage';
+import { createFileManifest } from './utils/fileStorage';
 import { Plus, Save, FolderOpen, Play, Code, Copy, Download } from 'lucide-react';
 
 function App() {
@@ -49,12 +49,11 @@ function App() {
       
       extractFiles(config.agents);
       
-      // Upload files to server/storage if any exist
+      // Files are already saved through fileHandler.ts when uploaded
       if (allFiles.length > 0) {
-        console.log(`📂 Processing ${allFiles.length} files...`);
-        await uploadFilesToServer(allFiles);
+        console.log(`📂 Found ${allFiles.length} files in configuration`);
         
-        // Create file manifest
+        // Create file manifest for logging
         const manifest = createFileManifest(allFiles);
         console.log('📋 File Manifest:', manifest);
       }

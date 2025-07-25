@@ -22,7 +22,7 @@ export const uploadFilesToServer = async (files: InputFile[]): Promise<StoredFil
       const storedFile: StoredFile = {
         originalName: file.original_name || 'unknown',
         storedPath: file.input_path,
-        content: file.file_content,
+        content: '', // Don't store content to avoid localStorage quota
         type: file.input_type,
         size: file.file_content.length,
         uploadedAt: new Date().toISOString()

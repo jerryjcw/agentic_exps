@@ -82,7 +82,7 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
 
   // Handle agent config based on number of root agents
   let agentConfig: any;
-  
+
   if (config.agents.length === 1) {
     // Single root agent - use it directly
     agentConfig = await cleanAgentForExport(config.agents[0], config.useInternalModels);
@@ -105,7 +105,7 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
       sub_agents: []
     };
   }
-  
+
   return {
     job_config: jobConfig,
     agent_config: agentConfig,
@@ -115,19 +115,16 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
 
 const extractAllInputFiles = (agents: AgentType[]): any[] => {
   const allFiles: any[] = [];
-  
+
   const extractFromAgent = (agent: AgentType) => {
     if (agent.class === 'Agent') {
       const agentTyped = agent as Agent;
       if (agentTyped.input_files) {
         // Convert our InputFile format to the expected API format
         const apiFiles = agentTyped.input_files.map(file => {
-          // Use the original filename without timestamp prefix
-          const uploadDirPattern = /\/uploaded_files\/\d+_/;
-          const cleanPath = file.input_path.replace(uploadDirPattern, '/uploaded_files/');
-          
+          // Keep the full path with timestamp to match actual saved files
           return {
-            input_path: cleanPath,
+            input_path: file.input_path,
             input_type: file.input_type,
             target_agent: file.target_agent
           };
@@ -161,15 +158,19 @@ const cleanAgentForExport = async (agent: AgentType, useInternalModels = false):
     cleaned.model = `${modelPrefix}/${agentTyped.model}`;
     cleaned.instruction = agentTyped.instruction;
     cleaned.output_key = agentTyped.output_key || agentTyped.name;
-    
+
     if (agentTyped.tools && agentTyped.tools.length > 0) {
       // Load tool information from database to get full tool details
       try {
         const toolsInfo = await loadToolsInfo();
         const toolsMap = new Map(toolsInfo.map(t => [t.function_name, t]));
-        
+        // Map tools to their full information
         cleaned.tools = agentTyped.tools.map(toolName => {
-          const toolInfo = toolsMap.get(toolName);
+          // check if the tool is string, if not, get the function_name from the tool object if it has this property
+          if (typeof toolName !== 'string') {
+            toolName = (toolName as { function_name?: string; name?: string }).function_name || (toolName as { name?: string }).name || '';
+          }
+          const toolInfo = toolsMap.get(toolName as string);
           if (toolInfo) {
             return {
               class: toolInfo.class,
@@ -187,6 +188,8 @@ const cleanAgentForExport = async (agent: AgentType, useInternalModels = false):
             };
           }
         });
+        // Deduplicate cleaned.tools by function_name
+        cleaned.tools = Array.from(new Map(cleaned.tools.map((tool: { function_name: any; }) => [tool.function_name, tool])).values());
       } catch (error) {
         console.error('Error loading tool info for export:', error);
         // Fallback to simple tool format
@@ -203,11 +206,11 @@ const cleanAgentForExport = async (agent: AgentType, useInternalModels = false):
   } else {
     // Container agents
     const containerAgent = agent as any;
-    
+
     if (agent.class === 'LoopAgent') {
       cleaned.max_iterations = containerAgent.max_iterations;
     }
-    
+
     if (containerAgent.sub_agents) {
       cleaned.sub_agents = await Promise.all(
         containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels))
@@ -225,7 +228,7 @@ export const loadToolsInfo = async (): Promise<ToolInfo[]> => {
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Failed to load tools from database:', error);
@@ -242,7 +245,7 @@ export const loadAvailableTools = async (): Promise<string[]> => {
     // Fallback to hardcoded tools if API fails
     return [
       'get_current_time_tool',
-      'get_temperature_tool', 
+      'get_temperature_tool',
       'google_search_tool',
       'get_earnings_report_tool',
       'get_company_news_tool'
