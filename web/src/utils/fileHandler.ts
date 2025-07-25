@@ -230,6 +230,10 @@ export const saveFileToKnownLocation = async (inputFile: InputFile): Promise<boo
       return true; // Return true since this isn't an error, just a loaded file reference
     }
 
+    // Extract timestamp from the generated path to ensure consistency
+    const pathMatch = inputFile.input_path.match(/\/(\d+)_/);
+    const timestamp = pathMatch ? parseInt(pathMatch[1]) : Date.now();
+
     const fileData = {
       path: inputFile.input_path,
       content: inputFile.file_content,
@@ -237,22 +241,10 @@ export const saveFileToKnownLocation = async (inputFile: InputFile): Promise<boo
       type: inputFile.input_type,
       file_size: inputFile.file_size,
       is_binary: inputFile.is_binary,
-      timestamp: Date.now()
+      timestamp: timestamp
     };
     
-    // Store metadata only in localStorage for backup (exclude content to avoid quota limits)
-    const existingFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
-    const fileMetadata = {
-      path: fileData.path,
-      originalName: fileData.originalName,
-      type: fileData.type,
-      file_size: fileData.file_size,
-      is_binary: fileData.is_binary,
-      timestamp: fileData.timestamp
-      // content excluded to avoid localStorage quota limits
-    };
-    existingFiles.push(fileMetadata);
-    localStorage.setItem('uploadedFiles', JSON.stringify(existingFiles));
+    // Files are saved to server - no need for localStorage backup to avoid quota issues
     
     console.log(`📁 File ready for storage at: ${inputFile.input_path}`);
     console.log(`📄 Original name: ${inputFile.original_name}`);
