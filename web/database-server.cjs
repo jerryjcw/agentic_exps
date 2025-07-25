@@ -52,7 +52,8 @@ db.exec(`
     last_modified TEXT NOT NULL,
     version INTEGER DEFAULT 1,
     configuration_data TEXT NOT NULL,
-    system_prompt TEXT NOT NULL
+    system_prompt TEXT NOT NULL,
+    global_attributes TEXT DEFAULT '{}'
   )
 `);
 
@@ -363,7 +364,7 @@ const routes = {
   'POST /api/configurations': async (req, res) => {
     try {
       const body = await parseBody(req);
-      const { name, description, author, configuration_data, system_prompt } = body;
+      const { name, description, author, configuration_data, system_prompt, global_attributes } = body;
 
       if (!name || !author || !configuration_data || !system_prompt) {
         sendError(res, 'Missing required fields: name, author, configuration_data, system_prompt');
@@ -381,22 +382,24 @@ const routes = {
         const updateStmt = db.prepare(`
           UPDATE configurations 
           SET description = ?, author = ?, last_modified = ?, 
-              version = version + 1, configuration_data = ?, system_prompt = ?
+              version = version + 1, configuration_data = ?, system_prompt = ?, global_attributes = ?
           WHERE name = ?
         `);
         
-        updateStmt.run(description, author, now, configuration_data, system_prompt, name);
+        updateStmt.run(description, author, now, configuration_data, system_prompt, 
+          JSON.stringify(global_attributes || {}), name);
         const updated = existingStmt.get(name);
         sendJSON(res, updated);
       } else {
         // Create new
         const insertStmt = db.prepare(`
           INSERT INTO configurations 
-          (name, description, author, creation_date, last_modified, version, configuration_data, system_prompt)
-          VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+          (name, description, author, creation_date, last_modified, version, configuration_data, system_prompt, global_attributes)
+          VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
         `);
         
-        const result = insertStmt.run(name, description, author, now, now, configuration_data, system_prompt);
+        const result = insertStmt.run(name, description, author, now, now, configuration_data, system_prompt, 
+          JSON.stringify(global_attributes || {}));
         const created = db.prepare('SELECT * FROM configurations WHERE id = ?').get(result.lastInsertRowid);
         sendJSON(res, created, 201);
       }

@@ -4,6 +4,16 @@ export const convertToJSON = async (config: WorkflowConfig): Promise<WorkflowReq
   return await convertToWorkflowRequest(config);
 };
 
+// Template replacement function (exported for use in other components)
+export const replaceTemplates = (text: string, globalAttributes: Record<string, string>): string => {
+  let result = text;
+  for (const [key, value] of Object.entries(globalAttributes)) {
+    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
+    result = result.replace(regex, value);
+  }
+  return result;
+};
+
 export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<WorkflowRequest> => {
 
   // Get first agent info for job naming
@@ -49,13 +59,13 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
     }
   };
 
-  // Create template config
+  // Create template config with template replacement
   const templateConfig: TemplateConfig = {
     template_name: 'Web UI Workflow Template',
     template_description: 'Template for workflows created through the web UI',
     template_version: '1.0',
     template_engine: 'jinja2',
-    template_content: config.systemPrompt || 'Please execute the following workflow.',
+    template_content: replaceTemplates(config.systemPrompt || 'Please execute the following workflow.', config.globalAttributes || {}),
     template_variables: {
       language: {
         description: 'Programming language',
@@ -85,7 +95,7 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
 
   if (config.agents.length === 1) {
     // Single root agent - use it directly
-    agentConfig = await cleanAgentForExport(config.agents[0], config.useInternalModels);
+    agentConfig = await cleanAgentForExport(config.agents[0], config.useInternalModels, config.globalAttributes || {});
   } else if (config.agents.length > 1) {
     // Multiple root agents - create minimal sequential wrapper
     agentConfig = {
@@ -93,7 +103,7 @@ export const convertToWorkflowRequest = async (config: WorkflowConfig): Promise<
       class: 'SequentialAgent',
       module: 'google.adk.agents',
       description: 'Root workflow',
-      sub_agents: await Promise.all(config.agents.map(agent => cleanAgentForExport(agent, config.useInternalModels)))
+      sub_agents: await Promise.all(config.agents.map(agent => cleanAgentForExport(agent, config.useInternalModels, config.globalAttributes || {})))
     };
   } else {
     // No agents - create empty sequential agent
@@ -144,7 +154,7 @@ const extractAllInputFiles = (agents: AgentType[]): any[] => {
   return allFiles;
 };
 
-const cleanAgentForExport = async (agent: AgentType, useInternalModels = false): Promise<any> => {
+const cleanAgentForExport = async (agent: AgentType, useInternalModels = false, globalAttributes: Record<string, string> = {}): Promise<any> => {
   const cleaned: any = {
     name: agent.name,
     class: agent.class,
@@ -156,7 +166,7 @@ const cleanAgentForExport = async (agent: AgentType, useInternalModels = false):
     const agentTyped = agent as Agent;
     const modelPrefix = useInternalModels ? 'internal' : 'openai';
     cleaned.model = `${modelPrefix}/${agentTyped.model}`;
-    cleaned.instruction = agentTyped.instruction;
+    cleaned.instruction = replaceTemplates(agentTyped.instruction, globalAttributes);
     cleaned.output_key = agentTyped.output_key || agentTyped.name;
 
     if (agentTyped.tools && agentTyped.tools.length > 0) {
@@ -213,7 +223,7 @@ const cleanAgentForExport = async (agent: AgentType, useInternalModels = false):
 
     if (containerAgent.sub_agents) {
       cleaned.sub_agents = await Promise.all(
-        containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels))
+        containerAgent.sub_agents.map((subAgent: AgentType) => cleanAgentForExport(subAgent, useInternalModels, globalAttributes))
       );
     }
   }

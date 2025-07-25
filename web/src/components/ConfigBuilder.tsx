@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { WorkflowConfig, AgentType } from '../types';
 import { AgentList } from './AgentList';
 import { AutoResizeTextarea } from './AutoResizeTextarea';
+import GlobalAttributes from './GlobalAttributes';
 import { loadAvailableTools } from '../utils/configConverter';
 import { Settings, Users, Sparkles, Code } from 'lucide-react';
 
@@ -34,6 +35,10 @@ export const ConfigBuilder: React.FC<ConfigBuilderProps> = ({
 
   const handleAgentsChange = (agents: AgentType[]) => {
     onChange({ ...config, agents });
+  };
+
+  const handleGlobalAttributesChange = (globalAttributes: Record<string, string>) => {
+    onChange({ ...config, globalAttributes });
   };
 
   return (
@@ -93,6 +98,12 @@ export const ConfigBuilder: React.FC<ConfigBuilderProps> = ({
             This will be used as the template_content in the generated configuration
           </div>
         </div>
+
+        {/* Global Attributes Card */}
+        <GlobalAttributes
+          attributes={config.globalAttributes}
+          onChange={handleGlobalAttributesChange}
+        />
 
         {/* Workflow Agents Card */}
         <div className="bg-white rounded-2xl shadow-lg" style={{ padding: '3%' }}>

@@ -8,6 +8,7 @@ export interface SavedConfiguration {
   version: number;
   configuration_data: string; // JSON string of the full configuration
   system_prompt: string;
+  global_attributes?: string; // JSON string of global attributes
 }
 
 export interface DatabaseConfig {
