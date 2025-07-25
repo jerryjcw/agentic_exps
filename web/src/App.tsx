@@ -4,6 +4,7 @@ import { ConfigBuilder } from './components/ConfigBuilder';
 import SaveConfiguration from './components/SaveConfiguration';
 import LoadConfiguration from './components/LoadConfiguration';
 import ExecuteConfiguration from './components/ExecuteConfiguration';
+import GlobalAttributes from './components/GlobalAttributes';
 import { convertToWorkflowRequest } from './utils/configConverter';
 import { createFileManifest } from './utils/fileStorage';
 import { Plus, Save, FolderOpen, Play, Code, Copy, Download } from 'lucide-react';
@@ -12,6 +13,7 @@ function App() {
   const [currentView, setCurrentView] = useState<NavigationView>('create');
   const [config, setConfig] = useState<WorkflowConfig>({
     systemPrompt: '',
+    globalAttributes: {},
     agents: [],
     useInternalModels: false
   });

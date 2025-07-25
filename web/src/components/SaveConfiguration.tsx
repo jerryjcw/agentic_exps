@@ -46,9 +46,7 @@ const SaveConfiguration: React.FC<SaveConfigurationProps> = ({ config, onSaveSuc
     setError(null);
 
     try {
-      // Convert workflow config to JSON format
-      const jsonConfig = await convertToJSON(config);
-      
+      // Save the original config structure (not the converted JSON) to preserve templates
       const now = new Date().toISOString();
       const configToSave = {
         name: formData.name.trim(),
@@ -57,8 +55,9 @@ const SaveConfiguration: React.FC<SaveConfigurationProps> = ({ config, onSaveSuc
         creation_date: now,
         last_modified: now,
         version: 1,
-        configuration_data: JSON.stringify(jsonConfig, null, 2),
-        system_prompt: config.systemPrompt
+        configuration_data: JSON.stringify(config, null, 2), // Save original config, not converted JSON
+        system_prompt: config.systemPrompt,
+        global_attributes: JSON.stringify(config.globalAttributes)
       };
 
       const id = await saveConfiguration(configToSave);

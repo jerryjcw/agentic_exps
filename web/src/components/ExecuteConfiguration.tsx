@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { WorkflowConfig } from '../types';
-import { convertToJSON } from '../utils/configConverter';
+import { convertToJSON, replaceTemplates } from '../utils/configConverter';
 import { Play, Settings, Eye, EyeOff, CheckCircle, AlertCircle, Terminal, Zap, Copy, Download } from 'lucide-react';
 
 interface ExecuteConfigurationProps {
@@ -163,7 +163,9 @@ const ExecuteConfiguration: React.FC<ExecuteConfigurationProps> = ({ config }) =
                   <div>
                     <span className="text-sm font-semibold text-gray-700">System Prompt:</span>
                     <p className="text-sm text-gray-600 mt-1 line-clamp-2 bg-gray-50 rounded-lg p-2">
-                      {config.systemPrompt || 'None specified'}
+                      {config.systemPrompt 
+                        ? replaceTemplates(config.systemPrompt, config.globalAttributes || {})
+                        : 'None specified'}
                     </p>
                   </div>
                 </div>

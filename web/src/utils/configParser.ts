@@ -23,7 +23,9 @@ export const parseWorkflowRequest = (jsonData: WorkflowRequest): WorkflowConfig 
 
   return {
     systemPrompt: jsonData.template_config.template_content,
-    agents: rootAgents
+    globalAttributes: {}, // Old format doesn't have global attributes
+    agents: rootAgents,
+    useInternalModels: false // Default for old format
   };
 };
 
@@ -103,7 +105,20 @@ const convertToUIInputFile = (apiFile: any): InputFile => {
 export const parseConfigurationData = (configData: string): WorkflowConfig => {
   try {
     const jsonData = JSON.parse(configData);
-    return parseWorkflowRequest(jsonData);
+    
+    // Check if this is the new format (original WorkflowConfig) or old format (WorkflowRequest)
+    if (jsonData.systemPrompt !== undefined && jsonData.agents !== undefined) {
+      // New format: direct WorkflowConfig
+      return {
+        systemPrompt: jsonData.systemPrompt || '',
+        globalAttributes: jsonData.globalAttributes || {},
+        agents: jsonData.agents || [],
+        useInternalModels: jsonData.useInternalModels || false
+      };
+    } else {
+      // Old format: WorkflowRequest, parse using existing logic
+      return parseWorkflowRequest(jsonData);
+    }
   } catch (error) {
     throw new Error(`Failed to parse configuration data: ${error instanceof Error ? error.message : 'Invalid JSON'}`);
   }
