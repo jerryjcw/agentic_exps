@@ -58,6 +58,9 @@ def synthesize_user_query_jinja2(template_config, file_names, file_types, file_c
     """
     Synthesize user query using Jinja2 template.
     
+    This function uses ALL template variables (both global and local scope)
+    for rendering the template_content, maintaining backward compatibility.
+    
     Args:
         template_config: Template configuration dictionary
         file_names: List of file names (strings)
@@ -67,11 +70,15 @@ def synthesize_user_query_jinja2(template_config, file_names, file_types, file_c
     Returns:
         str: Rendered user query
     """
-    template_content = template_config.get('template_content', '')
-    variable_mapping = template_config.get('template_variables', {})
+    from .template_processor import prepare_template_variables
     
-    # Prepare template variables
-    template_vars = {k: v['default'] for k, v in variable_mapping.items()}
+    template_content = template_config.get('template_content', '')
+    
+    # Prepare ALL template variables (both global and local scope)
+    # This maintains backward compatibility for template_content rendering
+    template_vars = prepare_template_variables(template_config, scope='all')
+    
+    # Add file-related variables
     template_vars.update({
         'file_name': file_names,
         'file_type': file_types, 

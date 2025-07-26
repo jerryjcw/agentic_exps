@@ -1,0 +1,116 @@
+name: EnhancedCodeImprovementWorkflow
+class: SequentialAgent
+module: google.adk.agents
+description: Enhanced code improvement workflow demonstrating global template variables
+
+sub_agents:
+  - name: ContextualCodeAnalysisAgent
+    class: Agent
+    module: google.adk.agents
+    model: openai/gpt-4o
+    instruction: |
+      You are a senior software engineer specializing in {{ target_language }} development.
+      
+      Your task is to analyze code with {{ analysis_depth }} level scrutiny, considering the context of {{ company_context }}.
+      
+      Focus your analysis on:
+      1. Architecture and design patterns suitable for {{ company_context }}
+      2. Code organization and maintainability standards
+      3. {{ target_language }}-specific best practices and idioms
+      4. Integration patterns and dependency management
+      
+      Provide a comprehensive architectural overview that will guide the subsequent specialized analysis agents.
+      Consider the {{ analysis_depth }} analysis requirements when determining the level of detail in your response.
+    description: "Analyzes code architecture and provides contextual overview"
+    output_key: "contextual_analysis"
+
+  - name: SpecializedAnalysisParallel
+    class: ParallelAgent
+    module: google.adk.agents
+    description: "Parallel specialized analysis with global context"
+    sub_agents:
+      - name: SecuritySpecialist
+        class: Agent
+        module: google.adk.agents
+        model: openai/gpt-4o
+        instruction: |
+          You are a cybersecurity specialist focused on {{ target_language }} security.
+          
+          Conduct a {{ analysis_depth }} security analysis following {{ security_standards }} guidelines.
+          Consider the {{ company_context }} environment when assessing security risks.
+          
+          Your analysis should include:
+          1. {{ security_standards }} compliance assessment
+          2. {{ target_language }}-specific security vulnerabilities
+          3. Security patterns appropriate for {{ company_context }}
+          4. Risk assessment based on {{ analysis_depth }} analysis depth
+          
+          Provide actionable security recommendations with prioritization based on risk level.
+        description: "Specialized security analysis with contextual awareness"
+        output_key: "security_analysis"
+
+      - name: PerformanceSpecialist
+        class: Agent
+        module: google.adk.agents
+        model: openai/gpt-4o
+        instruction: |
+          You are a performance optimization expert for {{ target_language }} applications.
+          
+          Perform {{ analysis_depth }} performance analysis considering {{ company_context }} requirements.
+          
+          Focus on:
+          1. {{ target_language }}-specific performance patterns and anti-patterns
+          2. Scalability considerations for {{ company_context }} environment
+          3. Resource utilization optimization strategies
+          4. Performance monitoring and profiling recommendations
+          
+          Provide specific optimization suggestions with expected impact assessment.
+          Tailor recommendations to {{ analysis_depth }} analysis requirements.
+        description: "Performance optimization analysis with context awareness"
+        output_key: "performance_analysis"
+
+      - name: QualityAssuranceSpecialist
+        class: Agent
+        module: google.adk.agents
+        model: openai/gpt-4o
+        instruction: |
+          You are a code quality expert specializing in {{ target_language }} development practices.
+          
+          Conduct {{ analysis_depth }} quality assessment suitable for {{ company_context }}.
+          
+          Evaluate:
+          1. {{ target_language }} coding standards and conventions
+          2. Code maintainability and readability for {{ company_context }} teams
+          3. Testing strategy and coverage appropriate for {{ analysis_depth }} analysis
+          4. Documentation and code organization standards
+          
+          Provide quality improvement roadmap with actionable recommendations.
+        description: "Code quality and maintainability assessment"
+        output_key: "quality_analysis"
+
+  - name: ContextualRecommendationSynthesizer
+    class: Agent
+    module: google.adk.agents
+    model: openai/gpt-4o
+    instruction: |
+      You are a technical lead responsible for synthesizing improvement recommendations for {{ target_language }} projects.
+      
+      Based on the {{ analysis_depth }} analysis results, create prioritized recommendations for {{ company_context }}.
+      
+      Your synthesis should:
+      1. Integrate findings from all specialized analyses
+      2. Prioritize recommendations based on {{ company_context }} business impact
+      3. Consider {{ security_standards }} compliance requirements
+      4. Provide implementation roadmap suitable for {{ analysis_depth }} analysis scope
+      
+      Include:
+      - Executive summary tailored to {{ company_context }}
+      - Prioritized action items with effort estimates
+      - Risk assessment and mitigation strategies
+      - {{ target_language }}-specific implementation guidance
+      
+      Ensure recommendations are practical and aligned with {{ company_context }} constraints.
+    description: "Contextual synthesis and prioritization of recommendations"
+    tools:
+      - get_current_time_tool
+    output_key: "contextualized_recommendations"

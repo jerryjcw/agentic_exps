@@ -10,7 +10,7 @@ execution steps.
 import datetime
 import json
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 import logging
 
@@ -300,7 +300,7 @@ def display_execution_steps_summary(execution_steps):
         print()
 
 
-def save_results(input_files_data, agent, event_count, final_responses: Dict[str, str], job_config: dict):
+def save_results(input_files_data, agent, event_count, final_responses: Dict[str, str], job_config: dict, agent_metadata: Dict[str, Any] = None):
     """Save agent execution results to files."""
     output_config = job_config.get('output_config', {})
     output_dir = Path(__file__).parent.parent / output_config.get('output_directory', 'output')
@@ -357,6 +357,10 @@ def save_results(input_files_data, agent, event_count, final_responses: Dict[str
         "execution_results": final_responses,
         "content_analyzed": [file_data['file_content'] for file_data in input_files_data]
     }
+    
+    # Add agent metadata if provided
+    if agent_metadata:
+        json_output["agent_metadata"] = agent_metadata
     
     json_file = output_dir / f"{file_naming.format(input_filename=input_filename, timestamp=timestamp)}.json"
     with open(json_file, 'w') as f:

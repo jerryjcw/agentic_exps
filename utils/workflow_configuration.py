@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from utils.document_reader import DocumentReader
 from utils.prompt_utils import append_content_to_agent_config
+from utils.template_processor import process_agent_config_templates
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class WorkflowConfiguration:
         self.job_config = {}
         self.agent_config = {}
         self.template_config = {}
+        self.processed_agent_config = {}  # Store the processed agent config with template variables
         self.input_files = []
         self.targeted_files_by_agent = {}
         
@@ -215,9 +217,44 @@ class WorkflowConfiguration:
         
         return self.input_files, self.targeted_files_by_agent
     
+    def apply_template_variables_to_agent_config(self) -> Dict[str, Any]:
+        """
+        Apply global template variables to agent configuration instructions.
+        
+        This method processes agent instructions BEFORE file content attachment
+        to avoid interfering with file contents that may contain template-like patterns.
+        
+        Returns:
+            Agent configuration with global template variables applied
+        """
+        if not self.template_config:
+            logger.warning("No template config available for template variable processing")
+            return self.agent_config
+        
+        try:
+            # Process only global template variables (apply_to_instructions=true)
+            processed_config = process_agent_config_templates(
+                self.agent_config, 
+                self.template_config
+            )
+            
+            # Store the processed config for metadata collection
+            self.processed_agent_config = processed_config
+            
+            logger.info("Successfully applied global template variables to agent configuration")
+            return processed_config
+            
+        except Exception as e:
+            logger.error(f"Failed to process template variables: {e}")
+            # Return original config if template processing fails
+            return self.agent_config
+    
     def apply_targeted_files_to_agent_config(self) -> int:
         """
         Apply targeted file content to agent configuration.
+        
+        IMPORTANT: This should be called AFTER template variable processing
+        to avoid interference with file content.
         
         Returns:
             Number of agents that were successfully modified
@@ -228,6 +265,9 @@ class WorkflowConfiguration:
                 success = append_content_to_agent_config(self.agent_config, target_agent, files)
                 if success:
                     modified_count += 1
+                    # Also update the processed config to maintain consistency
+                    if self.processed_agent_config:
+                        append_content_to_agent_config(self.processed_agent_config, target_agent, files)
                 else:
                     logger.warning(f"Could not find target agent '{target_agent}' in configuration")
         return modified_count
@@ -263,3 +303,30 @@ class WorkflowConfiguration:
     def get_report_config(self) -> Dict[str, Any]:
         """Get report configuration from job config."""
         return self.job_config.get('report_config', {})
+    
+    def get_agent_metadata(self) -> Optional[Dict[str, Any]]:
+        """
+        Get agent metadata from the processed agent configuration.
+        
+        Returns:
+            Agent metadata dictionary or None if no processed config available
+        """
+        if not self.processed_agent_config:
+            logger.warning("No processed agent configuration available for metadata collection")
+            return None
+        
+        try:
+            from utils.agent_metadata_collector import collect_all_agents_metadata, log_agent_metadata_summary
+            
+            # Get instruction preview length from output config, default to 256
+            output_config = self.get_output_config()
+            instruction_preview_length = output_config.get('instruction_preview_length', 256)
+            
+            metadata = collect_all_agents_metadata(self.processed_agent_config, instruction_preview_length)
+            log_agent_metadata_summary(metadata)
+            
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Failed to collect agent metadata: {e}")
+            return None

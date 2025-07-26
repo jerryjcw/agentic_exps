@@ -1,0 +1,209 @@
+{
+  "job_config": {
+    "job_name": "EnhancedCodeImprovementAnalysis",
+    "job_description": "Enhanced code analysis with global template variables for contextual adaptation",
+    "job_type": "contextual_code_analysis",
+    "runner_config": {
+      "app_name": "EnhancedCodeImprovementAnalysis",
+      "session_config": {
+        "user_id": "enhanced_code_analyzer",
+        "session_id": "enhanced_analysis_session"
+      }
+    },
+    "input_config": {
+      "input_files": [
+        {
+          "input_path": "core/gpt_caller.py",
+          "input_type": "text",
+          "target_agent": [
+            "ContextualCodeAnalysisAgent",
+            "SecuritySpecialist",
+            "PerformanceSpecialist"
+          ]
+        },
+        {
+          "input_path": "api/main.py",
+          "input_type": "text",
+          "target_agent": [
+            "QualityAssuranceSpecialist",
+            "SecuritySpecialist"
+          ]
+        }
+      ],
+      "preview_length": 500
+    },
+    "output_config": {
+      "output_directory": "output",
+      "output_format": [
+        "txt",
+        "json"
+      ],
+      "file_naming": "enhanced_analysis_{input_filename}_{timestamp}",
+      "timestamp_format": "%Y%m%d_%H%M%S",
+      "include_metadata": true,
+      "instruction_preview_length": 512
+    },
+    "execution_config": {
+      "track_execution_steps": true,
+      "display_progress": true,
+      "log_level": "INFO",
+      "error_handling": "continue_on_agent_failure",
+      "timeout_seconds": 300
+    },
+    "report_config": {
+      "include_final_responses": true,
+      "include_code_preview": true,
+      "include_execution_summary": true,
+      "display_results_summary": true
+    }
+  },
+  "agent_config": {
+    "name": "EnhancedCodeImprovementWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "Enhanced code improvement workflow demonstrating global template variables",
+    "sub_agents": [
+      {
+        "name": "ContextualCodeAnalysisAgent",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are a senior software engineer specializing in {{ target_language }} development.\n\nYour task is to analyze code with {{ analysis_depth }} level scrutiny, considering the context of {{ company_context }}.\n\nFocus your analysis on:\n1. Architecture and design patterns suitable for {{ company_context }}\n2. Code organization and maintainability standards\n3. {{ target_language }}-specific best practices and idioms\n4. Integration patterns and dependency management\n\nProvide a comprehensive architectural overview that will guide the subsequent specialized analysis agents.\nConsider the {{ analysis_depth }} analysis requirements when determining the level of detail in your response.\n",
+        "description": "Analyzes code architecture and provides contextual overview",
+        "output_key": "contextual_analysis"
+      },
+      {
+        "name": "SpecializedAnalysisParallel",
+        "class": "ParallelAgent",
+        "module": "google.adk.agents",
+        "description": "Parallel specialized analysis with global context",
+        "sub_agents": [
+          {
+            "name": "SecuritySpecialist",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a cybersecurity specialist focused on {{ target_language }} security.\n\nConduct a {{ analysis_depth }} security analysis following {{ security_standards }} guidelines.\nConsider the {{ company_context }} environment when assessing security risks.\n\nYour analysis should include:\n1. {{ security_standards }} compliance assessment\n2. {{ target_language }}-specific security vulnerabilities\n3. Security patterns appropriate for {{ company_context }}\n4. Risk assessment based on {{ analysis_depth }} analysis depth\n\nProvide actionable security recommendations with prioritization based on risk level.\n",
+            "description": "Specialized security analysis with contextual awareness",
+            "output_key": "security_analysis"
+          },
+          {
+            "name": "PerformanceSpecialist",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a performance optimization expert for {{ target_language }} applications.\n\nPerform {{ analysis_depth }} performance analysis considering {{ company_context }} requirements.\n\nFocus on:\n1. {{ target_language }}-specific performance patterns and anti-patterns\n2. Scalability considerations for {{ company_context }} environment\n3. Resource utilization optimization strategies\n4. Performance monitoring and profiling recommendations\n\nProvide specific optimization suggestions with expected impact assessment.\nTailor recommendations to {{ analysis_depth }} analysis requirements.\n",
+            "description": "Performance optimization analysis with context awareness",
+            "output_key": "performance_analysis"
+          },
+          {
+            "name": "QualityAssuranceSpecialist",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a code quality expert specializing in {{ target_language }} development practices.\n\nConduct {{ analysis_depth }} quality assessment suitable for {{ company_context }}.\n\nEvaluate:\n1. {{ target_language }} coding standards and conventions\n2. Code maintainability and readability for {{ company_context }} teams\n3. Testing strategy and coverage appropriate for {{ analysis_depth }} analysis\n4. Documentation and code organization standards\n\nProvide quality improvement roadmap with actionable recommendations.\n",
+            "description": "Code quality and maintainability assessment",
+            "output_key": "quality_analysis"
+          }
+        ]
+      },
+      {
+        "name": "ContextualRecommendationSynthesizer",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are a technical lead responsible for synthesizing improvement recommendations for {{ target_language }} projects.\n\nBased on the {{ analysis_depth }} analysis results, create prioritized recommendations for {{ company_context }}.\n\nYour synthesis should:\n1. Integrate findings from all specialized analyses\n2. Prioritize recommendations based on {{ company_context }} business impact\n3. Consider {{ security_standards }} compliance requirements\n4. Provide implementation roadmap suitable for {{ analysis_depth }} analysis scope\n\nInclude:\n- Executive summary tailored to {{ company_context }}\n- Prioritized action items with effort estimates\n- Risk assessment and mitigation strategies\n- {{ target_language }}-specific implementation guidance\n\nEnsure recommendations are practical and aligned with {{ company_context }} constraints.\n",
+        "description": "Contextual synthesis and prioritization of recommendations",
+        "tools": [
+          {
+            "class": "FunctionTool",
+            "module": "google.adk.tools",
+            "function_name": "get_current_time_tool",
+            "function_module": "tools.gadk.tools"
+          }
+        ],
+        "output_key": "contextualized_recommendations"
+      }
+    ]
+  },
+  "template_config": {
+    "template_name": "Enhanced Code Analysis Template with Global Variables",
+    "template_description": "Jinja2 template demonstrating global and local template variables",
+    "template_version": "3.0",
+    "template_engine": "jinja2",
+    "template_content": "Please analyze the following {{ language }} code for improvements focusing on {{ focus_area }}:\n\n{% if file_name|length == 1 -%}\nFile: {{ file_name[0] }}\n\nCode to analyze:\n```{{ file_type[0] }}\n{{ file_content[0] }}\n```\n{% else -%}\nFiles to analyze ({{ file_name|length }} files):\n\n{% for i in range(file_name|length) -%}\n## File {{ loop.index }}: {{ file_name[i] }}\n\nFile Type: {{ file_type[i] }}\n\nCode:\n```{{ file_type[i] }}\n{{ file_content[i] }}\n```\n\n{% endfor -%}\n{% endif -%}\n\nPlease provide a comprehensive analysis focusing on:\n{% for item in analysis_focus -%}\n{{ loop.index }}. {{ item }}\n{% endfor %}\n\n{% if file_name|length > 1 -%}\nWhen analyzing multiple files, please consider:\n- Relationships and dependencies between the files\n- Cross-file consistency in coding patterns and conventions\n- Potential integration issues or conflicts\n- Overall architecture and design patterns across the codebase\n{% endif -%}\n\nTarget programming language: {{ target_language }}\nAnalysis depth: {{ analysis_depth }}\n\nProvide specific recommendations with examples where possible.\n",
+    "template_variables": {
+      "language": {
+        "description": "Programming language of the code",
+        "type": "string",
+        "default": "Python",
+        "apply_to_instructions": false
+      },
+      "target_language": {
+        "description": "Target programming language for analysis focus",
+        "type": "string",
+        "default": "Python",
+        "apply_to_instructions": true
+      },
+      "analysis_depth": {
+        "description": "Depth level of analysis (surface, detailed, comprehensive)",
+        "type": "string",
+        "default": "detailed",
+        "apply_to_instructions": true
+      },
+      "focus_area": {
+        "description": "Primary focus area for analysis",
+        "type": "string",
+        "default": "security and performance",
+        "apply_to_instructions": false
+      },
+      "company_context": {
+        "description": "Company or project context for tailored analysis",
+        "type": "string",
+        "default": "enterprise software development",
+        "apply_to_instructions": true
+      },
+      "security_standards": {
+        "description": "Security standards to follow (OWASP, SOC2, etc.)",
+        "type": "string",
+        "default": "OWASP Top 10",
+        "apply_to_instructions": true
+      },
+      "file_name": {
+        "description": "Array of file names being analyzed",
+        "type": "array",
+        "default": [
+          "unknown_file"
+        ],
+        "apply_to_instructions": false
+      },
+      "file_type": {
+        "description": "Array of file types corresponding to each file",
+        "type": "array",
+        "default": [
+          "text"
+        ],
+        "apply_to_instructions": false
+      },
+      "file_content": {
+        "description": "Array of file contents corresponding to each file",
+        "type": "array",
+        "default": [
+          ""
+        ],
+        "apply_to_instructions": false
+      },
+      "analysis_focus": {
+        "description": "List of analysis focus areas",
+        "type": "array",
+        "default": [
+          "Security vulnerabilities and defensive measures",
+          "Performance bottlenecks and optimization opportunities",
+          "Code quality issues and maintainability improvements",
+          "Testing gaps and coverage recommendations"
+        ],
+        "apply_to_instructions": false
+      }
+    }
+  }
+}

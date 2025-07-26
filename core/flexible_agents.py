@@ -246,9 +246,12 @@ async def run_job(agent, input_file_paths, execution_steps: Dict[str, ExecutionS
 
         logging.info(f"Execution completed: {event_count} events generated")
 
+        # Collect agent metadata from processed configuration
+        agent_metadata = workflow_config.get_agent_metadata()
+        
         # Save results
         output_file, json_file = save_results(
-            input_files_data, agent, event_count, final_responses, workflow_config.job_config
+            input_files_data, agent, event_count, final_responses, workflow_config.job_config, agent_metadata
         )
         
         return {
@@ -299,10 +302,13 @@ async def main_async_with_config(job_config_content: str, agent_config_content: 
             logging.error(str(e))
             return 1
         
+        # Apply template variables to agent configuration BEFORE file attachment
+        workflow_config.agent_config = workflow_config.apply_template_variables_to_agent_config()
+        
         # Apply targeted file content to agent configuration
         workflow_config.apply_targeted_files_to_agent_config()
         
-        # Create agent from the modified configuration
+        # Create agent from the processed configuration
         agent = _create_agent_from_dict(workflow_config.agent_config)
         
         if agent is None:
