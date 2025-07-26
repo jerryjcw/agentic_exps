@@ -52,9 +52,9 @@ def _create_tool_from_dict(tool_config: dict):
 
 def _create_tool_from_config(tool_config):
     """Creates a tool from either a string name or dictionary configuration."""
-    if isinstance(tool_config, str):
+    if isinstance(tool_config, str) or ("class" in tool_config and tool_config["class"] == "FunctionTool"):
         # Handle string tool names by using the registry
-        tool_name = tool_config
+        tool_name = tool_config if isinstance(tool_config, str) else tool_config.get("function_name", "None")
         
         from tools.gadk.registry import registry
         
