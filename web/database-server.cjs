@@ -57,6 +57,17 @@ db.exec(`
   )
 `);
 
+// Migration: Add global_attributes column if it doesn't exist
+try {
+  db.exec(`ALTER TABLE configurations ADD COLUMN global_attributes TEXT DEFAULT '{}'`);
+  console.log('✅ Added global_attributes column to existing configurations table');
+} catch (error) {
+  // Column already exists, ignore error
+  if (!error.message.includes('duplicate column name')) {
+    console.error('Migration error:', error.message);
+  }
+}
+
 // Create tools table
 db.exec(`
   CREATE TABLE IF NOT EXISTS tools (
