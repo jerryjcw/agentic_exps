@@ -22,7 +22,7 @@ import os
 
 
 class MarkdownTableConverter:
-    """Converts markdown tables from text files to DOCX format."""
+    """Converts markdown tables, bullet points, and nested sub-bullet points from text files to DOCX format."""
     
     def __init__(self, max_column_width: int = 40):
         """
@@ -32,6 +32,32 @@ class MarkdownTableConverter:
             max_column_width: Maximum characters per column (default: 40)
         """
         self.max_column_width = max_column_width
+    
+    def detect_bullet_points(self, text: str) -> List[Tuple[int, str, int]]:
+        """
+        Detect bullet points and nested sub-bullet points in text.
+        
+        Args:
+            text: Input text to scan for bullet points
+            
+        Returns:
+            List of tuples containing (line_number, content, nesting_level)
+        """
+        lines = text.split('\n')
+        bullets = []
+        
+        for i, line in enumerate(lines):
+            stripped_line = line.strip()
+            
+            # Detect bullet points (-, *, +) with various nesting levels
+            bullet_match = re.match(r'^(\s*)[-*+]\s+(.+)$', line)
+            if bullet_match:
+                indent_spaces = len(bullet_match.group(1))
+                content = bullet_match.group(2).strip()
+                nesting_level = indent_spaces // 2  # Assume 2 spaces per level
+                bullets.append((i + 1, content, nesting_level))
+        
+        return bullets
     
     def detect_markdown_tables(self, text: str) -> List[Tuple[int, List[str]]]:
         """
@@ -143,6 +169,31 @@ class MarkdownTableConverter:
         
         return '\n'.join(lines)
     
+    def create_pdf_bullets(self, story: List, bullets: List[Tuple[int, str, int]], styles) -> None:
+        """
+        Create formatted bullet points for PDF document.
+        
+        Args:
+            story: List to append PDF elements to
+            bullets: List of bullet point data (line_number, content, nesting_level)
+            styles: PDF styles
+        """
+        if not bullets:
+            return
+        
+        # Add heading
+        heading = Paragraph('Bullet Points', styles['Heading2'])
+        story.append(heading)
+        story.append(Spacer(1, 12))
+        
+        for line_num, content, level in bullets:
+            indent = "  " * level
+            bullet_text = f"{indent}• {content} (Line {line_num})"
+            para = Paragraph(bullet_text, styles['Normal'])
+            story.append(para)
+        
+        story.append(Spacer(1, 12))
+    
     def create_pdf_table(self, story: List, table_data: List[List[str]], 
                          table_number: int, start_line: int, styles) -> None:
         """
@@ -193,6 +244,30 @@ class MarkdownTableConverter:
         story.append(table)
         story.append(Spacer(1, 12))
     
+    def create_docx_bullets(self, doc: Document, bullets: List[Tuple[int, str, int]]) -> None:
+        """
+        Create formatted bullet points in the DOCX document.
+        
+        Args:
+            doc: Document object
+            bullets: List of bullet point data (line_number, content, nesting_level)
+        """
+        if not bullets:
+            return
+        
+        # Add heading
+        doc.add_heading('Bullet Points', level=2)
+        
+        for line_num, content, level in bullets:
+            para = doc.add_paragraph(f"{content} (Line {line_num})")
+            # Use basic bullet style for all levels
+            para.style = doc.styles['List Bullet']
+            # Add indentation for nested levels
+            if level > 0:
+                para.paragraph_format.left_indent = Inches(0.5 * level)
+        
+        doc.add_paragraph()
+    
     def create_docx_table(self, doc: Document, table_data: List[List[str]], 
                          table_number: int, start_line: int) -> None:
         """
@@ -236,7 +311,7 @@ class MarkdownTableConverter:
     
     def convert_to_pdf(self, input_file: str, output_file: str) -> bool:
         """
-        Convert markdown tables from input file to PDF format.
+        Convert markdown tables and bullet points from input file to PDF format.
         
         Args:
             input_file: Path to input text file
@@ -250,11 +325,12 @@ class MarkdownTableConverter:
             with open(input_file, 'r', encoding='utf-8') as f:
                 text = f.read()
             
-            # Detect tables
+            # Detect tables and bullet points
             tables = self.detect_markdown_tables(text)
+            bullets = self.detect_bullet_points(text)
             
-            if not tables:
-                print(f"No markdown tables found in {input_file}")
+            if not tables and not bullets:
+                print(f"No markdown tables or bullet points found in {input_file}")
                 return False
             
             # Create PDF document
@@ -272,7 +348,13 @@ class MarkdownTableConverter:
             story.append(info)
             tables_count = Paragraph(f'Total tables found: {len(tables)}', styles['Normal'])
             story.append(tables_count)
+            bullets_count = Paragraph(f'Total bullet points found: {len(bullets)}', styles['Normal'])
+            story.append(bullets_count)
             story.append(Spacer(1, 20))
+            
+            # Process bullet points first
+            if bullets:
+                self.create_pdf_bullets(story, bullets, styles)
             
             # Process each table
             for table_num, (start_line, table_lines) in enumerate(tables, 1):
@@ -285,7 +367,7 @@ class MarkdownTableConverter:
             
             # Build PDF
             doc.build(story)
-            print(f"Successfully converted {len(tables)} tables to {output_file}")
+            print(f"Successfully converted {len(tables)} tables and {len(bullets)} bullet points to {output_file}")
             return True
             
         except Exception as e:
@@ -294,7 +376,7 @@ class MarkdownTableConverter:
     
     def convert_to_docx(self, input_file: str, output_file: str) -> bool:
         """
-        Convert markdown tables from input file to DOCX format.
+        Convert markdown tables and bullet points from input file to DOCX format.
         
         Args:
             input_file: Path to input text file
@@ -308,19 +390,25 @@ class MarkdownTableConverter:
             with open(input_file, 'r', encoding='utf-8') as f:
                 text = f.read()
             
-            # Detect tables
+            # Detect tables and bullet points
             tables = self.detect_markdown_tables(text)
+            bullets = self.detect_bullet_points(text)
             
-            if not tables:
-                print(f"No markdown tables found in {input_file}")
+            if not tables and not bullets:
+                print(f"No markdown tables or bullet points found in {input_file}")
                 return False
             
             # Create DOCX document
             doc = Document()
-            doc.add_heading('Markdown Tables Export', level=1)
+            doc.add_heading('Markdown Export', level=1)
             doc.add_paragraph(f'Extracted from: {os.path.basename(input_file)}')
             doc.add_paragraph(f'Total tables found: {len(tables)}')
+            doc.add_paragraph(f'Total bullet points found: {len(bullets)}')
             doc.add_paragraph()
+            
+            # Process bullet points first
+            if bullets:
+                self.create_docx_bullets(doc, bullets)
             
             # Process each table
             for table_num, (start_line, table_lines) in enumerate(tables, 1):
@@ -333,7 +421,7 @@ class MarkdownTableConverter:
             
             # Save document
             doc.save(output_file)
-            print(f"Successfully converted {len(tables)} tables to {output_file}")
+            print(f"Successfully converted {len(tables)} tables and {len(bullets)} bullet points to {output_file}")
             return True
             
         except Exception as e:
