@@ -6,7 +6,7 @@ and convert them to a visually formatted DOCX document.
 """
 
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union, Dict, Any
 from docx import Document
 from docx.shared import Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -58,6 +58,91 @@ class MarkdownTableConverter:
                 bullets.append((i + 1, content, nesting_level))
         
         return bullets
+    
+    def parse_document_structure(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Parse the entire document structure sequentially, preserving order.
+        
+        Args:
+            text: Input text to parse
+            
+        Returns:
+            List of elements with type and content information
+        """
+        lines = text.split('\n')
+        elements = []
+        current_table = []
+        table_start_line = None
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped_line = line.strip()
+            
+            # Check for table row
+            if stripped_line.startswith('|') and stripped_line.endswith('|'):
+                if current_table == []:
+                    table_start_line = i + 1
+                current_table.append(stripped_line)
+                i += 1
+                continue
+            
+            # If we were in a table, finalize it
+            if current_table:
+                table_rows = []
+                for row in current_table:
+                    if not re.match(r'^[\|\-\:\s]+$', row):
+                        table_rows.append(row)
+                
+                if table_rows:
+                    elements.append({
+                        'type': 'table',
+                        'content': table_rows,
+                        'start_line': table_start_line
+                    })
+                current_table = []
+                table_start_line = None
+            
+            # Check for bullet point
+            bullet_match = re.match(r'^(\s*)[-*+]\s+(.+)$', line)
+            if bullet_match:
+                indent_spaces = len(bullet_match.group(1))
+                content = bullet_match.group(2).strip()
+                nesting_level = indent_spaces // 2
+                elements.append({
+                    'type': 'bullet',
+                    'content': content,
+                    'line_number': i + 1,
+                    'nesting_level': nesting_level
+                })
+                i += 1
+                continue
+            
+            # Regular text (non-empty lines that aren't tables or bullets)
+            if stripped_line:
+                elements.append({
+                    'type': 'text',
+                    'content': stripped_line,
+                    'line_number': i + 1
+                })
+            
+            i += 1
+        
+        # Handle table at end of file
+        if current_table:
+            table_rows = []
+            for row in current_table:
+                if not re.match(r'^[\|\-\:\s]+$', row):
+                    table_rows.append(row)
+            
+            if table_rows:
+                elements.append({
+                    'type': 'table',
+                    'content': table_rows,
+                    'start_line': table_start_line
+                })
+        
+        return elements
     
     def detect_markdown_tables(self, text: str) -> List[Tuple[int, List[str]]]:
         """
@@ -194,6 +279,22 @@ class MarkdownTableConverter:
         
         story.append(Spacer(1, 12))
     
+    def create_pdf_text(self, story: List, text_content: str, line_number: int, styles) -> None:
+        """
+        Create formatted text paragraph for PDF document.
+        
+        Args:
+            story: List to append PDF elements to
+            text_content: Text content to add
+            line_number: Line number where text appears
+            styles: PDF styles
+        """
+        # Create text paragraph with line number reference
+        para_text = f"{text_content} (Line {line_number})"
+        para = Paragraph(para_text, styles['Normal'])
+        story.append(para)
+        story.append(Spacer(1, 6))
+    
     def create_pdf_table(self, story: List, table_data: List[List[str]], 
                          table_number: int, start_line: int, styles) -> None:
         """
@@ -268,6 +369,19 @@ class MarkdownTableConverter:
         
         doc.add_paragraph()
     
+    def create_docx_text(self, doc: Document, text_content: str, line_number: int) -> None:
+        """
+        Create formatted text paragraph in the DOCX document.
+        
+        Args:
+            doc: Document object
+            text_content: Text content to add
+            line_number: Line number where text appears
+        """
+        # Add text paragraph with line number reference
+        para_text = f"{text_content} (Line {line_number})"
+        doc.add_paragraph(para_text)
+    
     def create_docx_table(self, doc: Document, table_data: List[List[str]], 
                          table_number: int, start_line: int) -> None:
         """
@@ -325,12 +439,11 @@ class MarkdownTableConverter:
             with open(input_file, 'r', encoding='utf-8') as f:
                 text = f.read()
             
-            # Detect tables and bullet points
-            tables = self.detect_markdown_tables(text)
-            bullets = self.detect_bullet_points(text)
+            # Parse document structure
+            elements = self.parse_document_structure(text)
             
-            if not tables and not bullets:
-                print(f"No markdown tables or bullet points found in {input_file}")
+            if not elements:
+                print(f"No content found in {input_file}")
                 return False
             
             # Create PDF document
@@ -339,35 +452,51 @@ class MarkdownTableConverter:
             styles = getSampleStyleSheet()
             
             # Add title
-            title = Paragraph('Markdown Tables Export', styles['Title'])
+            title = Paragraph('Markdown Content Export', styles['Title'])
             story.append(title)
             story.append(Spacer(1, 12))
             
             # Add metadata
             info = Paragraph(f'Extracted from: {os.path.basename(input_file)}', styles['Normal'])
             story.append(info)
-            tables_count = Paragraph(f'Total tables found: {len(tables)}', styles['Normal'])
-            story.append(tables_count)
-            bullets_count = Paragraph(f'Total bullet points found: {len(bullets)}', styles['Normal'])
-            story.append(bullets_count)
+            
+            # Count different element types
+            tables_count = sum(1 for e in elements if e['type'] == 'table')
+            bullets_count = sum(1 for e in elements if e['type'] == 'bullet')
+            text_count = sum(1 for e in elements if e['type'] == 'text')
+            
+            tables_para = Paragraph(f'Total tables found: {tables_count}', styles['Normal'])
+            story.append(tables_para)
+            bullets_para = Paragraph(f'Total bullet points found: {bullets_count}', styles['Normal'])
+            story.append(bullets_para)
+            text_para = Paragraph(f'Total text paragraphs found: {text_count}', styles['Normal'])
+            story.append(text_para)
             story.append(Spacer(1, 20))
             
-            # Process bullet points first
-            if bullets:
-                self.create_pdf_bullets(story, bullets, styles)
-            
-            # Process each table
-            for table_num, (start_line, table_lines) in enumerate(tables, 1):
-                table_data = []
-                for line in table_lines:
-                    cells = self.parse_table_row(line)
-                    table_data.append(cells)
-                
-                self.create_pdf_table(story, table_data, table_num, start_line, styles)
+            # Process elements in document order
+            table_counter = 0
+            for element in elements:
+                if element['type'] == 'text':
+                    self.create_pdf_text(story, element['content'], element['line_number'], styles)
+                elif element['type'] == 'bullet':
+                    # Create individual bullet points in order
+                    indent = "  " * element['nesting_level']
+                    bullet_text = f"{indent}• {element['content']} (Line {element['line_number']})"
+                    para = Paragraph(bullet_text, styles['Normal'])
+                    story.append(para)
+                    story.append(Spacer(1, 3))
+                elif element['type'] == 'table':
+                    table_counter += 1
+                    table_data = []
+                    for line in element['content']:
+                        cells = self.parse_table_row(line)
+                        table_data.append(cells)
+                    
+                    self.create_pdf_table(story, table_data, table_counter, element['start_line'], styles)
             
             # Build PDF
             doc.build(story)
-            print(f"Successfully converted {len(tables)} tables and {len(bullets)} bullet points to {output_file}")
+            print(f"Successfully converted {tables_count} tables, {bullets_count} bullet points, and {text_count} text paragraphs to {output_file}")
             return True
             
         except Exception as e:
@@ -390,38 +519,52 @@ class MarkdownTableConverter:
             with open(input_file, 'r', encoding='utf-8') as f:
                 text = f.read()
             
-            # Detect tables and bullet points
-            tables = self.detect_markdown_tables(text)
-            bullets = self.detect_bullet_points(text)
+            # Parse document structure
+            elements = self.parse_document_structure(text)
             
-            if not tables and not bullets:
-                print(f"No markdown tables or bullet points found in {input_file}")
+            if not elements:
+                print(f"No content found in {input_file}")
                 return False
             
             # Create DOCX document
             doc = Document()
-            doc.add_heading('Markdown Export', level=1)
+            doc.add_heading('Markdown Content Export', level=1)
             doc.add_paragraph(f'Extracted from: {os.path.basename(input_file)}')
-            doc.add_paragraph(f'Total tables found: {len(tables)}')
-            doc.add_paragraph(f'Total bullet points found: {len(bullets)}')
+            
+            # Count different element types
+            tables_count = sum(1 for e in elements if e['type'] == 'table')
+            bullets_count = sum(1 for e in elements if e['type'] == 'bullet')
+            text_count = sum(1 for e in elements if e['type'] == 'text')
+            
+            doc.add_paragraph(f'Total tables found: {tables_count}')
+            doc.add_paragraph(f'Total bullet points found: {bullets_count}')
+            doc.add_paragraph(f'Total text paragraphs found: {text_count}')
             doc.add_paragraph()
             
-            # Process bullet points first
-            if bullets:
-                self.create_docx_bullets(doc, bullets)
-            
-            # Process each table
-            for table_num, (start_line, table_lines) in enumerate(tables, 1):
-                table_data = []
-                for line in table_lines:
-                    cells = self.parse_table_row(line)
-                    table_data.append(cells)
-                
-                self.create_docx_table(doc, table_data, table_num, start_line)
+            # Process elements in document order
+            table_counter = 0
+            for element in elements:
+                if element['type'] == 'text':
+                    self.create_docx_text(doc, element['content'], element['line_number'])
+                elif element['type'] == 'bullet':
+                    # Create individual bullet points in order
+                    para = doc.add_paragraph(f"{element['content']} (Line {element['line_number']})")
+                    para.style = doc.styles['List Bullet']
+                    # Add indentation for nested levels
+                    if element['nesting_level'] > 0:
+                        para.paragraph_format.left_indent = Inches(0.5 * element['nesting_level'])
+                elif element['type'] == 'table':
+                    table_counter += 1
+                    table_data = []
+                    for line in element['content']:
+                        cells = self.parse_table_row(line)
+                        table_data.append(cells)
+                    
+                    self.create_docx_table(doc, table_data, table_counter, element['start_line'])
             
             # Save document
             doc.save(output_file)
-            print(f"Successfully converted {len(tables)} tables and {len(bullets)} bullet points to {output_file}")
+            print(f"Successfully converted {tables_count} tables, {bullets_count} bullet points, and {text_count} text paragraphs to {output_file}")
             return True
             
         except Exception as e:
