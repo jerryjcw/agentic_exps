@@ -1,0 +1,154 @@
+{
+  "job_config": {
+    "job_name": "SimpleCodeImprovementAnalysis",
+    "job_description": "[Simplified] Analyze Python code for security vulnerabilities, performance bottlenecks, code quality issues, and testing gaps",
+    "job_type": "code_analysis",
+    "runner_config": {
+      "app_name": "SimpleCodeImprovementAnalysis",
+      "session_config": {
+        "user_id": "simple_code_analyzer",
+        "session_id": "simple_analysis_session"
+      }
+    },
+    "input_config": {
+      "input_files": [
+        {
+          "input_path": "api/main.py",
+          "input_type": "text",
+          "target_agent": [
+            "GeneralCodeAnalysisAgent"
+          ]
+        }
+      ],
+      "preview_length": 500
+    },
+    "output_config": {
+      "output_directory": "output",
+      "output_format": [
+        "txt",
+        "json"
+      ],
+      "file_naming": "code_analysis_{input_filename}_{timestamp}",
+      "timestamp_format": "%Y%m%d_%H%M%S",
+      "include_metadata": true
+    },
+    "execution_config": {
+      "track_execution_steps": true,
+      "display_progress": true,
+      "log_level": "INFO",
+      "error_handling": "continue_on_agent_failure",
+      "timeout_seconds": 300
+    },
+    "report_config": {
+      "include_final_responses": true,
+      "include_code_preview": true,
+      "include_execution_summary": true,
+      "display_results_summary": true
+    }
+  },
+  "agent_config": {
+    "name": "SimpleCodeImprovementWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "A simplified code improvement workflow with 3 steps: analysis, parallel issue identification, and recommendations.",
+    "sub_agents": [
+      {
+        "name": "GeneralCodeAnalysisAgent",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are a senior software engineer. \nAnalyze the provided code to understand its structure, purpose, and main components. \nIdentify the programming language, key functions, dependencies, and overall architecture. \nProvide a clear overview of what the code does and how it's organized.\n",
+        "description": "Analyzes code structure and provides architectural overview",
+        "output_key": "code_analysis"
+      },
+      {
+        "name": "IssueIdentificationParallel",
+        "class": "ParallelAgent",
+        "module": "google.adk.agents",
+        "description": "Parallel identification of security and quality issues",
+        "sub_agents": [
+          {
+            "name": "SecurityAnalyzer",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a cybersecurity specialist focused on defensive security. \nAnalyze the code for security vulnerabilities, insecure patterns, and potential attack vectors. \nFocus on input validation, authentication, authorization, data exposure, and secure coding practices. \nProvide specific remediation recommendations with code examples where possible.\n",
+            "description": "Identifies security vulnerabilities and defensive measures",
+            "output_key": "security_analysis"
+          },
+          {
+            "name": "QualityAnalyzer",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You are a code quality expert. \nAnalyze the code for maintainability issues, performance bottlenecks, \ncode smells, and adherence to coding standards. \nLook for duplicated code, complex functions, unclear naming, inefficient algorithms, and opportunities for refactoring. \nProvide specific improvement suggestions with examples.\"\nThere are additional code files being added as input, provided below as a list of file name and content combinations. \nYou SHOULD focus your analysis on these newly input files, and provide an overall analysis of ALL files you have seen so far.\n",
+            "description": "Identifies code quality and performance issues",
+            "output_key": "quality_analysis"
+          }
+        ]
+      },
+      {
+        "name": "RecommendationSynthesizer",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are a technical lead responsible for synthesizing improvement recommendations. \nBased on the code analysis and identified issues, create a prioritized list of actionable improvements. \nInclude: \n  1) High-priority security fixes, \n  2) Performance optimizations, \n  3) Code quality improvements, \n  4) Refactoring suggestions. \nProvide clear implementation steps and expected benefits for each recommendation.\"\n",
+        "description": "Synthesizes and prioritizes improvement recommendations",
+        "tools": [
+          {
+            "class": "FunctionTool",
+            "module": "google.adk.tools",
+            "function_name": "get_current_time_tool",
+            "function_module": "tools.gadk.tools"
+          }
+        ],
+        "output_key": "improvement_recommendations"
+      }
+    ]
+  },
+  "template_config": {
+    "template_name": "Code Analysis Query Template (Jinja2)",
+    "template_description": "Jinja2 template for generating code analysis queries with dynamic content",
+    "template_version": "2.0",
+    "template_engine": "jinja2",
+    "template_content": "Please analyze the following {{ language }} code for improvements:\n\n{% if file_name|length == 1 -%}\nFile: {{ file_name[0] }}\n\nCode to analyze:\n```{{ file_type[0] }}\n{{ file_content[0] }}\n```\n{% else -%}\nFiles to analyze ({{ file_name|length }} files):\n\n{% for i in range(file_name|length) -%}\n## File {{ loop.index }}: {{ file_name[i] }}\n\nFile Type: {{ file_type[i] }}\n\nCode:\n```{{ file_type[i] }}\n{{ file_content[i] }}\n```\n\n{% endfor -%}\n{% endif -%}\n\nPlease provide a comprehensive analysis focusing on:\n{% for item in analysis_focus -%}\n{{ loop.index }}. {{ item }}\n{% endfor %}\n\n{% if file_name|length > 1 -%}\nWhen analyzing multiple files, please consider:\n- Relationships and dependencies between the files\n- Cross-file consistency in coding patterns and conventions\n- Potential integration issues or conflicts\n- Overall architecture and design patterns across the codebase\n{% endif -%}\n\nProvide specific recommendations with examples where possible.\nThere will be additional code files being introduced in the upcoming steps, you MUST include them into the overall analysis. \n",
+    "template_variables": {
+      "language": {
+        "description": "Programming language of the code",
+        "type": "string",
+        "default": "Python"
+      },
+      "file_name": {
+        "description": "Array of file names being analyzed",
+        "type": "array",
+        "default": [
+          "unknown_file"
+        ]
+      },
+      "file_type": {
+        "description": "Array of file types corresponding to each file",
+        "type": "array",
+        "default": [
+          "text"
+        ]
+      },
+      "file_content": {
+        "description": "Array of file contents corresponding to each file",
+        "type": "array",
+        "default": [
+          ""
+        ]
+      },
+      "analysis_focus": {
+        "description": "List of analysis focus areas",
+        "type": "array",
+        "default": [
+          "Security vulnerabilities and defensive measures",
+          "Performance bottlenecks and optimization opportunities",
+          "Code quality issues and maintainability improvements",
+          "Testing gaps and coverage recommendations"
+        ]
+      }
+    }
+  }
+}

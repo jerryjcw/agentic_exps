@@ -1,0 +1,145 @@
+{
+  "job_config": {
+    "job_name": "SimpleCodeImprovementAnalysis",
+    "job_description": "[Simplified] Analyze Python code for security vulnerabilities, performance bottlenecks, code quality issues, and testing gaps",
+    "job_type": "code_analysis",
+    "runner_config": {
+      "app_name": "SimpleCodeImprovementAnalysis",
+      "session_config": {
+        "user_id": "simple_code_analyzer",
+        "session_id": "simple_analysis_session"
+      }
+    },
+    "input_config": {
+      "input_folders": [
+        {
+          "input_path": "tests/resources/folder_test",
+          "target_agent": [
+            "GeneralCodeAnalysisAgent"
+          ]
+        }
+      ],
+      "preview_length": 500
+    },
+    "output_config": {
+      "output_directory": "output",
+      "output_format": [
+        "txt",
+        "json"
+      ],
+      "file_naming": "code_analysis_{input_filename}_{timestamp}",
+      "timestamp_format": "%Y%m%d_%H%M%S",
+      "include_metadata": true
+    },
+    "execution_config": {
+      "track_execution_steps": true,
+      "display_progress": true,
+      "log_level": "INFO",
+      "error_handling": "continue_on_agent_failure",
+      "timeout_seconds": 300
+    },
+    "report_config": {
+      "include_final_responses": true,
+      "include_code_preview": true,
+      "include_execution_summary": true,
+      "display_results_summary": true
+    }
+  },
+  "agent_config": {
+    "name": "SimpleCodeImprovementWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "A simplified code improvement workflow with 3 steps: analysis, parallel issue identification, and recommendations.",
+    "sub_agents": [
+      {
+        "name": "GeneralCodeAnalysisAgent",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You MUST not do any additional analysis or modifications, just repeat the file content listed as follows:",
+        "description": "Analyzes code structure and provides architectural overview",
+        "output_key": "code_analysis"
+      },
+      {
+        "name": "IssueIdentificationParallel",
+        "class": "ParallelAgent",
+        "module": "google.adk.agents",
+        "description": "Parallel identification of security and quality issues",
+        "sub_agents": [
+          {
+            "name": "SecurityAnalyzer",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
+            "description": "Identifies security vulnerabilities and defensive measures",
+            "output_key": "security_analysis"
+          },
+          {
+            "name": "QualityAnalyzer",
+            "class": "Agent",
+            "module": "google.adk.agents",
+            "model": "openai/gpt-4o",
+            "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
+            "description": "Identifies code quality and performance issues",
+            "output_key": "quality_analysis"
+          }
+        ]
+      },
+      {
+        "name": "RecommendationSynthesizer",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You MUST not do any additional analysis or modifications, add your name at the end of the content.",
+        "description": "Synthesizes and prioritizes improvement recommendations",
+        "output_key": "improvement_recommendations"
+      }
+    ]
+  },
+  "template_config": {
+    "template_name": "Code Analysis Query Template (Jinja2)",
+    "template_description": "Jinja2 template for generating code analysis queries with dynamic content",
+    "template_version": "2.0",
+    "template_engine": "jinja2",
+    "template_content": "",
+    "template_variables": {
+      "language": {
+        "description": "Programming language of the code",
+        "type": "string",
+        "default": "Python"
+      },
+      "file_name": {
+        "description": "Array of file names being analyzed",
+        "type": "array",
+        "default": [
+          "unknown_file"
+        ]
+      },
+      "file_type": {
+        "description": "Array of file types corresponding to each file",
+        "type": "array",
+        "default": [
+          "text"
+        ]
+      },
+      "file_content": {
+        "description": "Array of file contents corresponding to each file",
+        "type": "array",
+        "default": [
+          ""
+        ]
+      },
+      "analysis_focus": {
+        "description": "List of analysis focus areas",
+        "type": "array",
+        "default": [
+          "Security vulnerabilities and defensive measures",
+          "Performance bottlenecks and optimization opportunities",
+          "Code quality issues and maintainability improvements",
+          "Testing gaps and coverage recommendations"
+        ]
+      }
+    }
+  }
+}

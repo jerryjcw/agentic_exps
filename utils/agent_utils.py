@@ -8,10 +8,11 @@ execution steps.
 """
 
 import datetime
+import json
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from pathlib import Path
 import logging
-from typing import Dict
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -297,3 +298,93 @@ def display_execution_steps_summary(execution_steps):
         print(f"   Status: {step.status}")
         print(f"   sub_steps: {[s.agent_name for s in step.sub_steps]}")
         print()
+
+
+def save_results(input_files_data, agent, event_count, final_responses: Dict[str, str], job_config: dict, agent_metadata: Dict[str, Any] = None):
+    """Save agent execution results to files."""
+    output_config = job_config.get('output_config', {})
+    output_dir = Path(__file__).parent.parent / output_config.get('output_directory', 'output')
+    output_dir.mkdir(exist_ok=True)
+    
+    timestamp_format = output_config.get('timestamp_format', '%Y%m%d_%H%M%S')
+    timestamp = datetime.datetime.now().strftime(timestamp_format)
+    current_time = datetime.datetime.now()
+    
+    # Generate filename based on input files
+    if len(input_files_data) == 1:
+        input_filename = Path(input_files_data[0]['full_path']).stem
+    else:
+        input_filename = f"multi_file_execution_{len(input_files_data)}_files"
+    
+    # Save text report
+    file_naming = output_config.get('file_naming', 'agent_execution_{input_filename}_{timestamp}')
+    output_file = output_dir / f"{file_naming.format(input_filename=input_filename, timestamp=timestamp)}.txt"
+    with open(output_file, 'w') as f:
+        f.write(f"Agent Execution Report\n")
+        f.write(f"=====================\n\n")
+        f.write(f"Execution Date: {current_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Input Files ({len(input_files_data)}):\n")
+        for i, file_data in enumerate(input_files_data, 1):
+            f.write(f"  {i}. {file_data['full_path']} ({file_data['file_size']} chars)\n")
+        f.write(f"Agent: {agent.name}\n")
+        f.write(f"Events Generated: {event_count}\n\n")
+        
+        # Include final responses
+        if final_responses:
+            f.write("\n\nFinal Responses:\n")
+            f.write("-" * 40 + "\n")
+            for author, response in final_responses.items():
+                f.write(f"{author}:\n")
+                f.write(response + "\n\n")
+    
+    # Save JSON report
+    json_output = {
+        "metadata": {
+            "execution_date": current_time.isoformat(),
+            "input_files": [
+                {
+                    "file_path": file_data['full_path'],
+                    "file_name": file_data['file_name'],
+                    "file_type": file_data['file_type'],
+                    "file_size": file_data['file_size'],
+                }
+                for file_data in input_files_data
+            ],
+            "agent_name": agent.name,
+            "events_generated": event_count,
+            "total_file_size": sum(f['file_size'] for f in input_files_data),
+        },
+        "execution_results": final_responses,
+        "content_analyzed": [file_data['file_content'] for file_data in input_files_data]
+    }
+    
+    # Add agent metadata if provided
+    if agent_metadata:
+        json_output["agent_metadata"] = agent_metadata
+    
+    json_file = output_dir / f"{file_naming.format(input_filename=input_filename, timestamp=timestamp)}.json"
+    with open(json_file, 'w') as f:
+        json.dump(json_output, f, indent=2)
+    
+    logging.info(f"📁 Output saved to: {output_file}")
+    logging.info(f"📄 JSON output saved to: {json_file}")
+
+    return str(output_file), str(json_file)
+
+
+def display_results_summary(results):
+    """Display execution results summary."""
+    logging.info("\n" + "=" * 60)
+    logging.info("Execution Results Summary")
+    logging.info("=" * 60)
+
+    if isinstance(results, dict):
+        logging.info(f"Status: {results.get('status', 'unknown')}")
+        logging.info(f"Events Generated: {results.get('events_generated', 0)}")
+        logging.info(f"Response Length: {results.get('response_length', 0)} characters")
+        if results.get('output_file'):
+            logging.info(f"Text Output: {results['output_file']}")
+        if results.get('json_file'):
+            logging.info(f"JSON Output: {results['json_file']}")
+    else:
+        logging.warning("No results returned from agent execution")

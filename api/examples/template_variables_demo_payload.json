@@ -1,0 +1,162 @@
+{
+  "job_config": {
+    "job_name": "TemplateVariablesDemoAnalysis",
+    "job_description": "Demonstration of global vs local template variables functionality",
+    "job_type": "template_demo",
+    "runner_config": {
+      "app_name": "TemplateVariablesDemoAnalysis",
+      "session_config": {
+        "user_id": "template_demo_user",
+        "session_id": "template_demo_session"
+      }
+    },
+    "input_config": {
+      "input_files": [
+        {
+          "input_path": "utils/template_processor.py",
+          "input_type": "text",
+          "target_agent": [
+            "GlobalTemplateAgent"
+          ]
+        }
+      ],
+      "preview_length": 300
+    },
+    "output_config": {
+      "output_directory": "output",
+      "output_format": [
+        "txt",
+        "json"
+      ],
+      "file_naming": "template_demo_{input_filename}_{timestamp}",
+      "timestamp_format": "%Y%m%d_%H%M%S",
+      "include_metadata": true
+    },
+    "execution_config": {
+      "track_execution_steps": true,
+      "display_progress": true,
+      "log_level": "INFO",
+      "error_handling": "continue_on_agent_failure",
+      "timeout_seconds": 180
+    },
+    "report_config": {
+      "include_final_responses": true,
+      "include_code_preview": true,
+      "include_execution_summary": true,
+      "display_results_summary": true
+    }
+  },
+  "agent_config": {
+    "name": "TemplateVariablesDemoWorkflow",
+    "class": "SequentialAgent",
+    "module": "google.adk.agents",
+    "description": "Workflow demonstrating global template variables applied to {{ technology_stack }} in {{ deployment_environment }}",
+    "sub_agents": [
+      {
+        "name": "GlobalTemplateAgent",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are an expert in {{ technology_stack }} development working in {{ deployment_environment }} environments.\n\nYour expertise level is {{ expertise_level }} and you should provide {{ detail_level }} analysis.\n\nWhen analyzing code:\n1. Consider {{ technology_stack }} best practices and patterns\n2. Account for {{ deployment_environment }} specific requirements\n3. Provide {{ detail_level }} explanations suitable for {{ expertise_level }} developers\n4. Focus on {{ primary_concern }} as the main priority\n\nExample template variables in your instructions:\n- Technology: {{ technology_stack }}\n- Environment: {{ deployment_environment }} \n- Level: {{ expertise_level }}\n- Detail: {{ detail_level }}\n- Concern: {{ primary_concern }}\n\nNote: Variables marked with apply_to_instructions=true appear in these instructions.\nVariables marked with apply_to_instructions=false only appear in template_content.\n",
+        "description": "Agent demonstrating global template variable application",
+        "output_key": "global_template_demo"
+      },
+      {
+        "name": "ComparisonAgent",
+        "class": "Agent",
+        "module": "google.adk.agents",
+        "model": "openai/gpt-4o",
+        "instruction": "You are a comparison specialist for {{ technology_stack }} in {{ deployment_environment }}.\n\nCompare different approaches considering:\n1. {{ technology_stack }} ecosystem compatibility\n2. {{ deployment_environment }} deployment strategies\n3. {{ expertise_level }} team capabilities\n4. {{ detail_level }} documentation requirements\n\nPrioritize {{ primary_concern }} in your recommendations.\n\nThis agent also demonstrates global template variables:\n- Stack: {{ technology_stack }}\n- Env: {{ deployment_environment }}\n- Level: {{ expertise_level }}\n- Detail: {{ detail_level }}\n- Priority: {{ primary_concern }}\n",
+        "description": "Second agent showing consistent global variable application",
+        "output_key": "comparison_analysis"
+      }
+    ]
+  },
+  "template_config": {
+    "template_name": "Template Variables Demonstration",
+    "template_description": "Demonstrates the difference between global and local template variables",
+    "template_version": "3.0",
+    "template_engine": "jinja2",
+    "template_content": "# Template Variables Demonstration\n\nThis template content can use ALL variables (both global and local):\n\n## Global Variables (apply_to_instructions=true)\nThese variables are applied to agent instructions:\n- Technology Stack: {{ technology_stack }}\n- Deployment Environment: {{ deployment_environment }}\n- Expertise Level: {{ expertise_level }}\n- Detail Level: {{ detail_level }}\n- Primary Concern: {{ primary_concern }}\n\n## Local Variables (apply_to_instructions=false)\nThese variables only appear in template_content:\n- Report Format: {{ report_format }}\n- Analysis Scope: {{ analysis_scope }}\n- Template Version: {{ template_version_info }}\n- Custom Message: {{ local_message }}\n\n## File Information\n{% if file_name|length == 1 -%}\nAnalyzing file: {{ file_name[0] }}\nFile type: {{ file_type[0] }}\n\nContent preview:\n```{{ file_type[0] }}\n{{ file_content[0][:500] }}...\n```\n{% else -%}\nAnalyzing {{ file_name|length }} files:\n{% for i in range(file_name|length) -%}\n- {{ file_name[i] }} ({{ file_type[i] }})\n{% endfor -%}\n{% endif -%}\n\n## Analysis Configuration\n- Report Format: {{ report_format }} (local only)\n- Analysis Scope: {{ analysis_scope }} (local only)\n- Template Version: {{ template_version_info }} (local only)\n- Custom Message: {{ local_message }} (local only)\n\n---\n\n**Note**: Only variables marked with `apply_to_instructions: true` appear in agent instructions.\nAll variables are available in this template_content.\n",
+    "template_variables": {
+      "technology_stack": {
+        "description": "Primary technology stack being analyzed",
+        "type": "string",
+        "default": "Python/Django",
+        "apply_to_instructions": true
+      },
+      "deployment_environment": {
+        "description": "Target deployment environment",
+        "type": "string",
+        "default": "cloud-native",
+        "apply_to_instructions": true
+      },
+      "expertise_level": {
+        "description": "Target expertise level of the team",
+        "type": "string",
+        "default": "intermediate",
+        "apply_to_instructions": true
+      },
+      "detail_level": {
+        "description": "Level of detail required in analysis",
+        "type": "string",
+        "default": "comprehensive",
+        "apply_to_instructions": true
+      },
+      "primary_concern": {
+        "description": "Primary concern or focus area",
+        "type": "string",
+        "default": "security and maintainability",
+        "apply_to_instructions": true
+      },
+      "report_format": {
+        "description": "Format for the final report (local only)",
+        "type": "string",
+        "default": "structured markdown",
+        "apply_to_instructions": false
+      },
+      "analysis_scope": {
+        "description": "Scope of the analysis (local only)",
+        "type": "string",
+        "default": "full codebase review",
+        "apply_to_instructions": false
+      },
+      "template_version_info": {
+        "description": "Template version information (local only)",
+        "type": "string",
+        "default": "v3.0 with global/local variable support",
+        "apply_to_instructions": false
+      },
+      "local_message": {
+        "description": "Custom message for template content only",
+        "type": "string",
+        "default": "This message only appears in template_content, not in agent instructions",
+        "apply_to_instructions": false
+      },
+      "file_name": {
+        "description": "Array of file names being analyzed",
+        "type": "array",
+        "default": [
+          "unknown_file"
+        ],
+        "apply_to_instructions": false
+      },
+      "file_type": {
+        "description": "Array of file types corresponding to each file",
+        "type": "array",
+        "default": [
+          "text"
+        ],
+        "apply_to_instructions": false
+      },
+      "file_content": {
+        "description": "Array of file contents corresponding to each file",
+        "type": "array",
+        "default": [
+          ""
+        ],
+        "apply_to_instructions": false
+      }
+    }
+  }
+}

@@ -43,6 +43,7 @@ template_content: |
   {% endif -%}
   
   Provide specific recommendations with examples where possible.
+  There will be additional code files being introduced in the upcoming steps, you MUST include them into the overall analysis. 
 
 template_variables:
   language:

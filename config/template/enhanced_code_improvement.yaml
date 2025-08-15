@@ -1,0 +1,113 @@
+template_name: "Enhanced Code Analysis Template with Global Variables"
+template_description: "Jinja2 template demonstrating global and local template variables"
+template_version: "3.0"
+template_engine: "jinja2"
+
+template_content: |
+  Please analyze the following {{ language }} code for improvements focusing on {{ focus_area }}:
+
+  {% if file_name|length == 1 -%}
+  File: {{ file_name[0] }}
+
+  Code to analyze:
+  ```{{ file_type[0] }}
+  {{ file_content[0] }}
+  ```
+  {% else -%}
+  Files to analyze ({{ file_name|length }} files):
+
+  {% for i in range(file_name|length) -%}
+  ## File {{ loop.index }}: {{ file_name[i] }}
+  
+  File Type: {{ file_type[i] }}
+  
+  Code:
+  ```{{ file_type[i] }}
+  {{ file_content[i] }}
+  ```
+
+  {% endfor -%}
+  {% endif -%}
+
+  Please provide a comprehensive analysis focusing on:
+  {% for item in analysis_focus -%}
+  {{ loop.index }}. {{ item }}
+  {% endfor %}
+  
+  {% if file_name|length > 1 -%}
+  When analyzing multiple files, please consider:
+  - Relationships and dependencies between the files
+  - Cross-file consistency in coding patterns and conventions
+  - Potential integration issues or conflicts
+  - Overall architecture and design patterns across the codebase
+  {% endif -%}
+  
+  Target programming language: {{ target_language }}
+  Analysis depth: {{ analysis_depth }}
+  
+  Provide specific recommendations with examples where possible.
+
+template_variables:
+  language:
+    description: "Programming language of the code"
+    type: "string"
+    default: "Python"
+    apply_to_instructions: false  # Only used in template_content
+  
+  target_language:
+    description: "Target programming language for analysis focus"
+    type: "string"
+    default: "Python"
+    apply_to_instructions: true   # Applied globally to all agent instructions
+  
+  analysis_depth:
+    description: "Depth level of analysis (surface, detailed, comprehensive)"
+    type: "string"
+    default: "detailed"
+    apply_to_instructions: true   # Applied globally to all agent instructions
+  
+  focus_area:
+    description: "Primary focus area for analysis"
+    type: "string"
+    default: "security and performance"
+    apply_to_instructions: false  # Only used in template_content
+  
+  company_context:
+    description: "Company or project context for tailored analysis"
+    type: "string"
+    default: "enterprise software development"
+    apply_to_instructions: true   # Applied globally to all agent instructions
+  
+  security_standards:
+    description: "Security standards to follow (OWASP, SOC2, etc.)"
+    type: "string"
+    default: "OWASP Top 10"
+    apply_to_instructions: true   # Applied globally to all agent instructions
+  
+  file_name:
+    description: "Array of file names being analyzed"
+    type: "array"
+    default: ["unknown_file"]
+    apply_to_instructions: false  # Only used in template_content
+  
+  file_type:
+    description: "Array of file types corresponding to each file"
+    type: "array"
+    default: ["text"]
+    apply_to_instructions: false  # Only used in template_content
+  
+  file_content:
+    description: "Array of file contents corresponding to each file"
+    type: "array"
+    default: [""]
+    apply_to_instructions: false  # Only used in template_content
+  
+  analysis_focus:
+    description: "List of analysis focus areas"
+    type: "array"
+    default:
+      - "Security vulnerabilities and defensive measures"
+      - "Performance bottlenecks and optimization opportunities"
+      - "Code quality issues and maintainability improvements"
+      - "Testing gaps and coverage recommendations"
+    apply_to_instructions: false  # Only used in template_content
